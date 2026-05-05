@@ -1,0 +1,41 @@
+name: wallet_saver_app
+description: "지갑비서 '소리' - 20대를 위한 심리 기반 가계부 앱"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # 상태관리 / 라우팅 / DI
+  get: ^4.6.6
+
+  # 폰트
+  google_fonts: ^6.2.1
+
+  # Lottie 애니메이션
+  lottie: ^3.1.0
+
+  # 하단 내비게이션
+  google_nav_bar: ^5.0.6
+
+  # 차트
+  fl_chart: ^0.69.0
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/animations/
