@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class AiService {
@@ -8,10 +9,18 @@ class AiService {
     http.Client? client,
     String? baseUrl,
   })  : _client = client ?? http.Client(),
-        _baseUrl = baseUrl ?? 'http://10.0.2.2:8000';
+        _baseUrl = baseUrl ?? _defaultBaseUrl;
 
   final http.Client _client;
   final String _baseUrl;
+
+  static String get _defaultBaseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:8000';
+    }
+
+    return 'http://10.0.2.2:8000';
+  }
 
   Future<String> generateLocationWarning({
     required String placeName,

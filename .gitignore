@@ -1,0 +1,8 @@
+
+ai_backend/.env
+
+.env
+
+__pycache__/
+
+ai_backend/__pycache__/
