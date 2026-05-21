@@ -13,19 +13,34 @@ import 'screens/ai_screen.dart';
 import 'screens/character_screen.dart';
 import 'screens/danger_zone_screen.dart';
 
-void main() {
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
+import 'services/budget_service.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 임시 익명 로그인 (나중에 온보딩에서 처리 가능)
+  if (FirebaseAuth.instance.currentUser == null) {
+    await FirebaseAuth.instance.signInAnonymously();
+  }
+
   runApp(
     MultiProvider(
       providers: [
-        // Dummy Provider setup just as placeholder
-        ChangeNotifierProvider(create: (_) => DummyProvider()),
+        StreamProvider<User?>(
+          create: (_) => FirebaseAuth.instance.authStateChanges(),
+          initialData: FirebaseAuth.instance.currentUser,
+        ),
       ],
       child: const SoriApp(),
     ),
   );
 }
-
-class DummyProvider extends ChangeNotifier {}
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 

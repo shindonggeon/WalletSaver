@@ -1,112 +1,133 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/character_card.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/challenge_card.dart';
 import '../theme/app_theme.dart';
+import '../services/budget_service.dart';
+import '../models/budget.dart';
+import '../models/expense.dart';
+import '../constants/app_constants.dart';
+
+// Number format helper (간단한 구현)
+String formatNumber(int n) =>
+    n.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  // ── Dummy Data ──────────────────────────────────────────
   static const String nickname = '소리님';
   static const String naggingText = '"오늘 이미 커피 2잔이나 마셨어요! 또 카페 가시게요?"';
-  static const int todayBudget = 15300;
-  static const int monthlyBudget = 750000;
-  static const int monthlyExpense = 410000;
-  static const int monthlyRemaining = 340000;
-  static const double budgetUsageRate = 0.55; // 0.0~1.0 (주의 상태)
-
-  static const List<Map<String, dynamic>> recentTransactions = [
-    {'title': '스타벅스 강남점', 'category': '카페', 'amount': -5500, 'time': '14:30', 'emoji': '☕'},
-    {'title': 'CU 편의점', 'category': '식비', 'amount': -4200, 'time': '12:10', 'emoji': '🏪'},
-    {'title': '교통카드 충전', 'category': '교통', 'amount': -30000, 'time': '08:45', 'emoji': '🚇'},
-  ];
-  // ────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final theme = AppTheme.getBudgetTheme(budgetUsageRate);
+    final user = context.watch<User?>();
+    if (user == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final uid = user.uid;
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // ── 상단 앱바
-          SliverAppBar(
-            backgroundColor: AppColors.bgPage,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            pinned: false,
-            floating: true,
-            expandedHeight: 70,
-            flexibleSpace: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_todayLabel(), style: AppTextStyles.captionNormal),
-                      Text('안녕하세요, $nickname 👋', style: AppTextStyles.greetingTitle),
-                    ],
+      body: StreamBuilder<Budget?>(
+        stream: BudgetService.budgetStream(uid),
+        builder: (context, budgetSnap) {
+          final budget = budgetSnap.data;
+          final budgetUsageRate = (budget?.budgetUsageRate ?? 0) / 100.0;
+          final theme = AppTheme.getBudgetTheme(budgetUsageRate);
+
+          return StreamBuilder<List<Expense>>(
+            stream: BudgetService.expenseStream(uid),
+            builder: (context, expenseSnap) {
+              final expenses = expenseSnap.data ?? [];
+              final recentTransactions = expenses.take(3).toList();
+
+              return CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverAppBar(
+                    backgroundColor: AppColors.bgPage,
+                    elevation: 0,
+                    scrolledUnderElevation: 0,
+                    pinned: false,
+                    floating: true,
+                    expandedHeight: 70,
+                    flexibleSpace: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_todayLabel(), style: AppTextStyles.captionNormal),
+                              Text('안녕하세요, $nickname 👋', style: AppTextStyles.greetingTitle),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              _IconBtn(icon: Icons.notifications_none_rounded, onTap: () {}),
+                              const SizedBox(width: 8),
+                              _IconBtn(icon: Icons.settings_outlined, onTap: () {}),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  Row(
-                    children: [
-                      _IconBtn(icon: Icons.notifications_none_rounded, onTap: () {}),
-                      const SizedBox(width: 8),
-                      _IconBtn(icon: Icons.settings_outlined, onTap: () {}),
-                    ],
+
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        _NaggingBanner(text: naggingText, themeColor: theme.primary),
+                        const SizedBox(height: 16),
+
+                        CharacterCard(budgetUsageRate: budgetUsageRate),
+                        const SizedBox(height: 16),
+
+                        BudgetCard(
+                          todayBudget: budget?.todayBudget ?? 0,
+                          monthlyBudget: budget?.totalBudget ?? 2500000,
+                          monthlyExpense: budget?.totalSpent ?? 0,
+                          monthlyRemaining: budget?.remainingBudget ?? 0,
+                          budgetUsageRate: budgetUsageRate,
+                        ),
+                        const SizedBox(height: 16),
+
+                        const ChallengeCard(
+                          challengeName: '카페 주 3회 이하',
+                          progressText: '이번주 2회 / 목표 3회',
+                          isAchieving: true,
+                        ),
+                        const SizedBox(height: 20),
+
+                        Text('최근 지출', style: AppTextStyles.sectionHeader),
+                        const SizedBox(height: 12),
+                        if (recentTransactions.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(child: Text('이번 달 지출 내역이 없습니다.', style: TextStyle(color: AppColors.textHint))),
+                          )
+                        else
+                          ...recentTransactions.map((tx) => _TransactionItem(tx: tx)),
+                        const SizedBox(height: 20),
+
+                        GestureDetector(
+                          onTap: () {
+                            // TODO: Add Expense Flow (LedgerScreen 참고)
+                          },
+                          child: _AddExpenseButton(primary: theme.primary),
+                        ),
+                      ]),
+                    ),
                   ),
                 ],
-              ),
-            ),
-          ),
-
-          // ── 본문
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // 잔소리 배너
-                _NaggingBanner(text: naggingText, themeColor: theme.primary),
-                const SizedBox(height: 16),
-
-                // 캐릭터 카드
-                CharacterCard(budgetUsageRate: budgetUsageRate),
-                const SizedBox(height: 16),
-
-                // 예산 Hero 카드
-                BudgetCard(
-                  todayBudget: todayBudget,
-                  monthlyBudget: monthlyBudget,
-                  monthlyExpense: monthlyExpense,
-                  monthlyRemaining: monthlyRemaining,
-                  budgetUsageRate: budgetUsageRate,
-                ),
-                const SizedBox(height: 16),
-
-                // 챌린지 카드
-                const ChallengeCard(
-                  challengeName: '카페 주 3회 이하',
-                  progressText: '이번주 2회 / 목표 3회',
-                  isAchieving: true,
-                ),
-                const SizedBox(height: 20),
-
-                // 최근 지출 섹션
-                Text('최근 지출', style: AppTextStyles.sectionHeader),
-                const SizedBox(height: 12),
-                ...recentTransactions.map((tx) => _TransactionItem(tx: tx)),
-                const SizedBox(height: 20),
-
-                // 지출 추가 버튼
-                _AddExpenseButton(primary: theme.primary),
-              ]),
-            ),
-          ),
-        ],
+              );
+            }
+          );
+        }
       ),
     );
   }
@@ -172,12 +193,16 @@ class _IconBtn extends StatelessWidget {
 }
 
 class _TransactionItem extends StatelessWidget {
-  final Map<String, dynamic> tx;
+  final Expense tx;
   const _TransactionItem({required this.tx});
 
   @override
   Widget build(BuildContext context) {
-    final catColor = AppColors.categoryColors[tx['category']] ?? AppColors.textHint;
+    final catColor = AppColors.categoryColors[tx.category] ?? AppColors.textHint;
+    final catLabel = CategoryKeys.label(tx.category);
+    final date = tx.spentAt.toDate();
+    final timeStr = '${date.hour.toString().padLeft(2,'0')}:${date.minute.toString().padLeft(2,'0')}';
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
@@ -189,22 +214,22 @@ class _TransactionItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             alignment: Alignment.center,
-            child: Text(tx['emoji'] ?? '💳', style: const TextStyle(fontSize: 22)),
+            child: Text(catLabel.substring(0,1), style: TextStyle(fontSize: 22, color: catColor)),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tx['title'], style: AppTextStyles.bodyBold.copyWith(color: AppColors.textPrimary)),
-                Text('${tx['category']} · ${tx['time']}', style: AppTextStyles.captionNormal),
+                Text(tx.merchant, style: AppTextStyles.bodyBold.copyWith(color: AppColors.textPrimary)),
+                Text('$catLabel · $timeStr', style: AppTextStyles.captionNormal),
               ],
             ),
           ),
           Text(
-            '${formatNumber(tx['amount'].abs())}원',
+            '-${formatNumber(tx.amount)}원',
             style: AppTextStyles.bodyBold.copyWith(
-              color: (tx['amount'] as int) < 0 ? AppColors.textPrimary : AppColors.income,
+              color: AppColors.expense,
             ),
           ),
         ],
