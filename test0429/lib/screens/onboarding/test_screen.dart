@@ -73,7 +73,11 @@ class _TestScreenState extends State<TestScreen> {
     if (tiedTraits.length == 1) {
       finalTrait = tiedTraits.first;
     } else if (tiedTraits.length == 3) {
-      finalTrait = CharacterTypes.lion;
+      if (maxTraitScore == 0) {
+        finalTrait = CharacterTypes.turtle; 
+      } else {
+        finalTrait = CharacterTypes.lion;
+      }
     } else {
       if (tiedTraits.contains(CharacterTypes.lion) && tiedTraits.contains(CharacterTypes.ant)) {
         finalTrait = CharacterTypes.lion;
