@@ -10,12 +10,34 @@ class ChallengeSetupScreen extends StatefulWidget {
 }
 
 class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
+  final TextEditingController _textController = TextEditingController();
+
   final List<Map<String, dynamic>> challenges = [
-    {'title': '무지출 챌린지 3일 연속', 'emoji': '🚫', 'selected': true},
-    {'title': '택시 대신 대중교통 이용하기', 'emoji': '🚇', 'selected': false},
-    {'title': '배달음식 주 1회로 줄이기', 'emoji': '🥗', 'selected': true},
-    {'title': '카페 안 가고 텀블러 쓰기', 'emoji': '☕', 'selected': false},
+    {'title': '택시 대신 대중교통이나 자전거 타기', 'emoji': '🚲', 'selected': false},
+    {'title': '배달음식 주 1회 이하로 줄이기', 'emoji': '🥗', 'selected': false},
+    {'title': '이번주 의류 및 패션 잡화 쇼핑 참기', 'emoji': '🛍️', 'selected': false},
+    {'title': '이번주 계획 금액 초과하지 않기', 'emoji': '💰', 'selected': false},
   ];
+
+  void _addCustomChallenge() {
+    final String text = _textController.text.trim();
+    if (text.isNotEmpty) {
+      setState(() {
+        challenges.add({
+          'title': text,
+          'emoji': '🎯',
+          'selected': true,
+        });
+        _textController.clear();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +68,6 @@ class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
                     onTap: () => setState(() => c['selected'] = !c['selected']),
                   )),
                   const SizedBox(height: 8),
-                  // 직접 입력
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     decoration: BoxDecoration(
@@ -54,13 +75,15 @@ class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: AppColors.border),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.edit_outlined, color: AppColors.textHint, size: 18),
-                        SizedBox(width: 8),
+                        const Icon(Icons.edit_outlined, color: AppColors.textHint, size: 18),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
-                            decoration: InputDecoration(
+                            controller: _textController,
+                            onSubmitted: (_) => _addCustomChallenge(),
+                            decoration: const InputDecoration(
                               border: InputBorder.none,
                               hintText: '직접 입력하기...',
                               isDense: true,
@@ -68,6 +91,12 @@ class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
                               filled: true,
                             ),
                           ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary, size: 22),
+                          onPressed: _addCustomChallenge,
+                          constraints: const BoxConstraints(),
+                          padding: EdgeInsets.zero,
                         ),
                       ],
                     ),
