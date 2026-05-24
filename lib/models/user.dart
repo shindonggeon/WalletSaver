@@ -13,6 +13,8 @@ class AppUser {
   final int age;                 // 나이 (AI 파트 요청)
   final String naggingIntensity; // NaggingIntensity 참조
   final Timestamp createdAt;     // 계정 생성 시각
+  final int exp;                 // 경험치 (기본값 0)
+  final int level;               // 레벨 (기본값 1, exp 누적으로 상승)
 
   const AppUser({
     required this.uid,
@@ -24,6 +26,8 @@ class AppUser {
     required this.age,
     required this.naggingIntensity,
     required this.createdAt,
+    this.exp = 0,
+    this.level = 1,
   });
 
   factory AppUser.fromDoc(DocumentSnapshot doc) {
@@ -38,6 +42,8 @@ class AppUser {
       age: (d['age'] as num?)?.toInt() ?? 0,
       naggingIntensity: d['naggingIntensity'] as String? ?? NaggingIntensity.normal,
       createdAt: d['createdAt'] as Timestamp,
+      exp: (d['exp'] as num?)?.toInt() ?? 0,
+      level: (d['level'] as num?)?.toInt() ?? 1,
     );
   }
 
@@ -51,6 +57,8 @@ class AppUser {
     'age': age,
     'naggingIntensity': naggingIntensity,
     'createdAt': createdAt,
+    'exp': exp,
+    'level': level,
   };
 
   bool get isValidCharacterType => CharacterTypes.all.contains(characterType);
