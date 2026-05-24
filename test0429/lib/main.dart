@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
+import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'screens/onboarding/test_screen.dart';
 import 'screens/onboarding/result_screen.dart';
@@ -13,11 +16,16 @@ import 'screens/ai_screen.dart';
 import 'screens/character_screen.dart';
 import 'screens/danger_zone_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // 익명 로그인 — 로그인 상태가 없을 때만 실행
+  if (FirebaseAuth.instance.currentUser == null) {
+    await FirebaseAuth.instance.signInAnonymously();
+  }
   runApp(
     MultiProvider(
       providers: [
-        // Dummy Provider setup just as placeholder
         ChangeNotifierProvider(create: (_) => DummyProvider()),
       ],
       child: const SoriApp(),
