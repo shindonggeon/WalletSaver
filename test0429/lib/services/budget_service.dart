@@ -49,7 +49,7 @@ class BudgetService {
     required int fixedExpenses,
   }) async {
     await _expensesRef(uid).add(expense.toMap());
-    await _recalculateAndSave(
+    await recalculateAndSave(
       uid: uid,
       monthlyIncome: monthlyIncome,
       fixedExpenses: fixedExpenses,
@@ -64,7 +64,7 @@ class BudgetService {
     required int fixedExpenses,
   }) async {
     await _expensesRef(uid).doc(expenseId).delete();
-    await _recalculateAndSave(
+    await recalculateAndSave(
       uid: uid,
       monthlyIncome: monthlyIncome,
       fixedExpenses: fixedExpenses,
@@ -74,7 +74,7 @@ class BudgetService {
   // ─── 예산 계산 & 저장 ──────────────────────────────────────────────────────
 
   /// 이번 달 지출 합산 → Budget 수식 적용 → Firestore 저장
-  static Future<Budget> _recalculateAndSave({
+  static Future<Budget> recalculateAndSave({
     required String uid,
     required int monthlyIncome,
     required int fixedExpenses,

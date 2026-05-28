@@ -181,7 +181,7 @@ class ResultScreen extends StatelessWidget {
               const Spacer(),
               ElevatedButton(
                 onPressed: () {
-                  context.push('/onboarding/finance-setup');
+                  context.push('/onboarding/finance-setup', extra: {'characterType': combinedCode});
                 },
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 18),

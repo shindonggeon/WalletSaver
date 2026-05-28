@@ -7,7 +7,16 @@ import '../../models/challenge.dart';
 import '../../services/challenge_service.dart';
 
 class ChallengeSetupScreen extends StatefulWidget {
-  const ChallengeSetupScreen({super.key});
+  final String characterType;
+  final int monthlyIncome;
+  final int fixedExpenses;
+  
+  const ChallengeSetupScreen({
+    super.key, 
+    required this.characterType,
+    required this.monthlyIncome,
+    required this.fixedExpenses,
+  });
 
   @override
   State<ChallengeSetupScreen> createState() => _ChallengeSetupScreenState();

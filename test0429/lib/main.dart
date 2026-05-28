@@ -61,11 +61,21 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/onboarding/finance-setup',
-      builder: (context, state) => const FinanceSetupScreen(),
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return FinanceSetupScreen(characterType: extra?['characterType'] as String? ?? 'ant_shopping');
+      },
     ),
     GoRoute(
       path: '/onboarding/challenge-setup',
-      builder: (context, state) => const ChallengeSetupScreen(),
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return ChallengeSetupScreen(
+          characterType: extra?['characterType'] as String? ?? 'ant_shopping',
+          monthlyIncome: extra?['monthlyIncome'] as int? ?? 0,
+          fixedExpenses: extra?['fixedExpenses'] as int? ?? 0,
+        );
+      },
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {

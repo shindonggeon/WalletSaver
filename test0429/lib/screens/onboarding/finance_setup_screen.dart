@@ -6,7 +6,8 @@ import '../../theme/app_theme.dart';
 import '../../services/user_service.dart';
 
 class FinanceSetupScreen extends StatefulWidget {
-  const FinanceSetupScreen({super.key});
+  final String characterType;
+  const FinanceSetupScreen({super.key, required this.characterType});
 
   @override
   State<FinanceSetupScreen> createState() => _FinanceSetupScreenState();
@@ -21,7 +22,7 @@ class _FinanceSetupScreenState extends State<FinanceSetupScreen> {
   ];
   bool _isSaving = false;
 
-  int get _income => int.tryParse(_incomeController.text.replaceAll(',', '')) ?? 0;
+  int get _income => int.tryParse(_incomeController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
   int get _totalFixed => _fixedExpenses.fold(0, (s, e) => s + (e['amount'] as int));
   int get _available => _income - _totalFixed;
 
@@ -49,7 +50,11 @@ class _FinanceSetupScreenState extends State<FinanceSetupScreen> {
         monthlyIncome: _income,
         fixedExpenses: _fixedExpenses,
       );
-      if (mounted) context.push('/onboarding/challenge-setup');
+      if (mounted) context.push('/onboarding/challenge-setup', extra: {
+        'characterType': widget.characterType,
+        'monthlyIncome': _income,
+        'fixedExpenses': _totalFixed,
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -61,39 +66,43 @@ class _FinanceSetupScreenState extends State<FinanceSetupScreen> {
     }
   }
 
+  void _addFixedExpense(String name, int amount) {
+    setState(() {
+      _fixedExpenses.add({'name': name, 'amount': amount});
+    });
+  }
+
+  void _removeFixedExpense(int index) {
+    setState(() {
+      _fixedExpenses.removeAt(index);
+    });
+  }
+
   void _showAddExpenseDialog() {
     final nameCtrl = TextEditingController();
     final amountCtrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('고정 지출 추가'),
+      builder: (context) => AlertDialog(
+        title: Text('고정 지출 추가', style: AppTextStyles.bodyBold),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: '항목명 (예: 넷플릭스)'),
-            ),
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: '항목명')),
             const SizedBox(height: 8),
-            TextField(
-              controller: amountCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: '금액 (원)', suffixText: '원'),
-            ),
+            TextField(controller: amountCtrl, decoration: const InputDecoration(labelText: '금액'), keyboardType: TextInputType.number),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
-          FilledButton(
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
             onPressed: () {
               final name = nameCtrl.text.trim();
-              final amount = int.tryParse(amountCtrl.text) ?? 0;
+              final amount = int.tryParse(amountCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
               if (name.isNotEmpty && amount > 0) {
-                setState(() => _fixedExpenses.add({'name': name, 'amount': amount}));
+                _addFixedExpense(name, amount);
+                Navigator.pop(context);
               }
-              Navigator.pop(ctx);
             },
             child: const Text('추가'),
           ),
@@ -101,6 +110,12 @@ class _FinanceSetupScreenState extends State<FinanceSetupScreen> {
       ),
     );
   }
+<<<<<<< Updated upstream
+=======
+
+  int get totalFixed => fixedExpenses.fold(0, (s, e) => s + (e['amount'] as int));
+  int get available => _income - totalFixed;
+>>>>>>> Stashed changes
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +144,10 @@ class _FinanceSetupScreenState extends State<FinanceSetupScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _incomeController,
+<<<<<<< Updated upstream
+=======
+                    decoration: const InputDecoration(hintText: '예: 2500000', suffixText: '원'),
+>>>>>>> Stashed changes
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(
@@ -160,7 +179,7 @@ class _FinanceSetupScreenState extends State<FinanceSetupScreen> {
                     (entry) => _ExpenseItem(
                       name: entry.value['name'] as String,
                       amount: entry.value['amount'] as int,
-                      onDelete: () => setState(() => _fixedExpenses.removeAt(entry.key)),
+                      onDelete: () => _removeFixedExpense(entry.key),
                     ),
                   ),
                 ],
@@ -225,7 +244,6 @@ class _ExpenseItem extends StatelessWidget {
   final String name;
   final int amount;
   final VoidCallback onDelete;
-
   const _ExpenseItem({
     required this.name,
     required this.amount,
@@ -237,7 +255,7 @@ class _ExpenseItem extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(14),
@@ -246,18 +264,17 @@ class _ExpenseItem extends StatelessWidget {
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(name, style: AppTextStyles.bodyBold.copyWith(color: AppColors.textPrimary)),
-            Row(
-              children: [
-                Text('${formatNumber(amount)}원', style: AppTextStyles.bodyBold),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: onDelete,
-                  child: const Icon(Icons.close, size: 18, color: AppColors.textHint),
-                ),
-              ],
+            Expanded(
+              child: Text(name, style: AppTextStyles.bodyBold.copyWith(color: AppColors.textPrimary)),
+            ),
+            Text('${formatNumber(amount)}원', style: AppTextStyles.bodyBold),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline, color: AppColors.expense, size: 20),
+              onPressed: onDelete,
+              constraints: const BoxConstraints(),
+              padding: EdgeInsets.zero,
             ),
           ],
         ),
