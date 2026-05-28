@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/app_theme.dart';
+import '../../models/challenge.dart';
+import '../../services/challenge_service.dart';
 
 class ChallengeSetupScreen extends StatefulWidget {
   const ChallengeSetupScreen({super.key});
@@ -10,33 +14,75 @@ class ChallengeSetupScreen extends StatefulWidget {
 }
 
 class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
-  final TextEditingController _textController = TextEditingController();
-
-  final List<Map<String, dynamic>> challenges = [
-    {'title': '택시 대신 대중교통이나 자전거 타기', 'emoji': '🚲', 'selected': false},
-    {'title': '배달음식 주 1회 이하로 줄이기', 'emoji': '🥗', 'selected': false},
-    {'title': '이번주 의류 및 패션 잡화 쇼핑 참기', 'emoji': '🛍️', 'selected': false},
-    {'title': '이번주 계획 금액 초과하지 않기', 'emoji': '💰', 'selected': false},
+  final List<Map<String, dynamic>> _presets = [
+    {'title': '무지출 챌린지 3일 연속', 'emoji': '🚫', 'selected': true},
+    {'title': '택시 대신 대중교통 이용하기', 'emoji': '🚇', 'selected': false},
+    {'title': '배달음식 주 1회로 줄이기', 'emoji': '🥗', 'selected': true},
+    {'title': '카페 안 가고 텀블러 쓰기', 'emoji': '☕', 'selected': false},
   ];
+  final _customController = TextEditingController();
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    // 선택한 프리셋 + 직접 입력 항목 수집
+    final selected = _presets
+        .where((c) => c['selected'] == true)
+        .map((c) => Challenge(
+              id: '',
+              title: c['title'] as String,
+              emoji: c['emoji'] as String,
+              isActive: true,
+              startedAt: Timestamp.now(),
+            ))
+        .toList();
+
+    final custom = _customController.text.trim();
+    if (custom.isNotEmpty) {
+      selected.add(Challenge(
+        id: '',
+        title: custom,
+        emoji: '🎯',
+        isActive: true,
+        startedAt: Timestamp.now(),
+      ));
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      await ChallengeService.createChallenges(uid: uid, challenges: selected);
+      if (mounted) context.go('/home');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장 실패: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
 
   void _addCustomChallenge() {
-    final String text = _textController.text.trim();
+    final String text = _customController.text.trim();
     if (text.isNotEmpty) {
       setState(() {
-        challenges.add({
+        _presets.add({
           'title': text,
           'emoji': '🎯',
           'selected': true,
         });
-        _textController.clear();
+        _customController.clear();
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _textController.dispose();
-    super.dispose();
   }
 
   @override
@@ -59,14 +105,17 @@ class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('함께 달성할\n챌린지를 골라주세요!', style: AppTextStyles.greetingTitle.copyWith(fontSize: 22, height: 1.5)),
+                  Text(
+                    '함께 달성할\n챌린지를 골라주세요!',
+                    style: AppTextStyles.greetingTitle.copyWith(fontSize: 22, height: 1.5),
+                  ),
                   const SizedBox(height: 4),
                   Text('여러 개 선택할 수 있어요.', style: AppTextStyles.captionNormal),
                   const SizedBox(height: 28),
-                  ...challenges.map((c) => _ChallengeItem(
-                    challenge: c,
-                    onTap: () => setState(() => c['selected'] = !c['selected']),
-                  )),
+                  ..._presets.map((c) => _ChallengeItem(
+                        challenge: c,
+                        onTap: () => setState(() => c['selected'] = !c['selected']),
+                      )),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -81,7 +130,7 @@ class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
-                            controller: _textController,
+                            controller: _customController,
                             onSubmitted: (_) => _addCustomChallenge(),
                             decoration: const InputDecoration(
                               border: InputBorder.none,
@@ -111,8 +160,14 @@ class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => context.go('/home'),
-                  child: const Text('소리와 함께 시작하기'),
+                  onPressed: _isSaving ? null : _save,
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('소리와 함께 시작하기'),
                 ),
               ),
             ),
@@ -140,8 +195,13 @@ class _ChallengeItem extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected ? AppColors.tagBg : AppColors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSelected ? AppColors.primary : AppColors.border, width: isSelected ? 1.5 : 1),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)
+          ],
         ),
         child: Row(
           children: [
