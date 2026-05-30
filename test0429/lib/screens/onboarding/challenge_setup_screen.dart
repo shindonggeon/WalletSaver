@@ -5,7 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/app_theme.dart';
 import '../../models/challenge.dart';
 import '../../services/challenge_service.dart';
-
+import '../../services/user_service.dart';
+import '../../services/budget_service.dart';
 class ChallengeSetupScreen extends StatefulWidget {
   final String characterType;
   final int monthlyIncome;
@@ -67,7 +68,22 @@ class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
 
     setState(() => _isSaving = true);
     try {
+      // 1. 캐릭터 타입 DB 저장
+      await UserService.updateCharacterType(
+        uid: uid,
+        characterType: widget.characterType,
+      );
+
+      // 2. 초기 예산 데이터 생성
+      await BudgetService.recalculateAndSave(
+        uid: uid,
+        monthlyIncome: widget.monthlyIncome,
+        fixedExpenses: widget.fixedExpenses,
+      );
+
+      // 3. 챌린지 저장
       await ChallengeService.createChallenges(uid: uid, challenges: selected);
+      
       if (mounted) context.go('/home');
     } catch (e) {
       if (mounted) {

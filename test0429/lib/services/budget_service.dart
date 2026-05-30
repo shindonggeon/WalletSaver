@@ -86,15 +86,27 @@ class BudgetService {
         .where('spentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
         .get();
 
-    final totalSpent = snapshot.docs.fold<int>(
-      0,
-      (sum, doc) => sum + (doc.data()['amount'] as num).toInt(),
-    );
+    int totalSpentBeforeToday = 0;
+    int spentToday = 0;
+    
+    final todayStart = DateTime(now.year, now.month, now.day);
+
+    for (var doc in snapshot.docs) {
+      final amount = (doc.data()['amount'] as num).toInt();
+      final spentAt = (doc.data()['spentAt'] as Timestamp).toDate();
+      
+      if (spentAt.isBefore(todayStart)) {
+        totalSpentBeforeToday += amount;
+      } else {
+        spentToday += amount;
+      }
+    }
 
     final budget = Budget.calculate(
       monthlyIncome: monthlyIncome,
       fixedExpenses: fixedExpenses,
-      totalSpent: totalSpent,
+      totalSpentBeforeToday: totalSpentBeforeToday,
+      spentToday: spentToday,
       daysLeftInMonth: daysLeftInMonth(),
     );
 

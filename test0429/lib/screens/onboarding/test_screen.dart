@@ -204,36 +204,55 @@ class _TestScreenState extends State<TestScreen> {
               ),
               const SizedBox(height: 60),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Q${_currentStep + 1}',
-                      style: AppTextStyles.greetingTitle.copyWith(
-                        color: AppColors.primary,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: IntrinsicHeight(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Q${_currentStep + 1}',
+                                      style: AppTextStyles.greetingTitle.copyWith(
+                                        color: AppColors.primary,
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    Text(
+                                      _currentStep < 17 
+                                          ? _questions[_currentStep]['text']! 
+                                          : '가장 관심 있는 소비 카테고리를 하나 선택해주세요. (선택한 카테고리 +2점)',
+                                      textAlign: TextAlign.center,
+                                      style: AppTextStyles.greetingTitle.copyWith(
+                                        fontSize: 20,
+                                        height: 1.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+                              _currentStep < 17 
+                                  ? _buildLikertButtons() 
+                                  : _buildCategoryButtons(),
+                              const SizedBox(height: 24),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      _currentStep < 17 
-                          ? _questions[_currentStep]['text']! 
-                          : '가장 관심 있는 소비 카테고리를 하나 선택해주세요. (선택한 카테고리 +2점)',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.greetingTitle.copyWith(
-                        fontSize: 20,
-                        height: 1.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                    );
+                  }
                 ),
               ),
-              _currentStep < 17 
-                  ? _buildLikertButtons() 
-                  : _buildCategoryButtons(),
-              const SizedBox(height: 24),
             ],
           ),
         ),

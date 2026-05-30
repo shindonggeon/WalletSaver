@@ -35,7 +35,7 @@ class Monitoring {
 
     // 4. 플러그인 환경 설정 및 엔진 시동
     bg.BackgroundGeolocation.ready(bg.Config(
-      desiredAccuracy: bg.Config.ACCURACY_HIGH, // GPS 정확도 최상 (배터리 소모가 있지만 정확함)
+      desiredAccuracy: bg.Config.DESIRED_ACCURACY_HIGH, // GPS 정확도 최상 (배터리 소모가 있지만 정확함)
       distanceFilter: 10.0,                     // 10미터 이동할 때마다 위치 갱신
       stopOnTerminate: false,                   // ⭐️ 사용자가 앱을 강제 종료해도 백그라운드 감시 유지
       startOnBoot: true,                        // ⭐️ 스마트폰을 껐다 켜도 자동으로 감시 재시작

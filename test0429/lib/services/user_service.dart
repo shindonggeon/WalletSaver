@@ -65,7 +65,18 @@ class UserService {
     );
   }
 
-  // ─── exp / level 업데이트 ─────────────────────────────────────────────────
+  // ─── exp / level / character 업데이트 ──────────────────────────────────────
+
+  /// 캐릭터 성향 저장 (온보딩 결과에서 호출)
+  static Future<void> updateCharacterType({
+    required String uid,
+    required String characterType,
+  }) async {
+    await _userRef(uid).set(
+      {'characterType': characterType},
+      SetOptions(merge: true),
+    );
+  }
 
   /// 캐릭터 경험치·레벨 갱신 (챌린지 달성, 지출 절제 시 호출)
   static Future<void> updateExpAndLevel({
