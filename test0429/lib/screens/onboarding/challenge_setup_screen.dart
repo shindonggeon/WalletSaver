@@ -84,7 +84,20 @@ class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
       );
 
       // 3. 챌린지 저장
-      await ChallengeService.createChallenges(uid: uid, challenges: selected);
+      // 이미 진행 중인 챌린지 목록 조회하여 중복 방지
+      final activeSnap = await FirebaseFirestore.instance
+          .collection(CollectionKeys.users)
+          .doc(uid)
+          .collection(CollectionKeys.challenges)
+          .where('isActive', isEqualTo: true)
+          .get();
+      final activeTitles = activeSnap.docs.map((d) => d['title'] as String).toSet();
+      
+      final newChallenges = selected.where((c) => !activeTitles.contains(c.title)).toList();
+      
+      if (newChallenges.isNotEmpty) {
+        await ChallengeService.createChallenges(uid: uid, challenges: newChallenges);
+      }
       
       if (mounted) {
         if (widget.isFromOnboarding) {
