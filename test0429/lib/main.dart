@@ -10,6 +10,7 @@ import 'screens/onboarding/test_screen.dart';
 import 'screens/onboarding/result_screen.dart';
 import 'screens/onboarding/finance_setup_screen.dart';
 import 'screens/onboarding/challenge_setup_screen.dart';
+import 'screens/manage_finance_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ledger_screen.dart';
 import 'screens/ai_screen.dart';
@@ -70,8 +71,13 @@ final GoRouter _router = GoRouter(
           characterType: extra?['characterType'] as String? ?? 'ant_shopping',
           monthlyIncome: extra?['monthlyIncome'] as int? ?? 0,
           fixedExpenses: extra?['fixedExpenses'] as int? ?? 0,
+          isFromOnboarding: extra?['isFromOnboarding'] as bool? ?? true,
         );
       },
+    ),
+    GoRoute(
+      path: '/manage-finance',
+      builder: (context, state) => const ManageFinanceScreen(),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {

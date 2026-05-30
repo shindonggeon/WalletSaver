@@ -11,12 +11,14 @@ class ChallengeSetupScreen extends StatefulWidget {
   final String characterType;
   final int monthlyIncome;
   final int fixedExpenses;
+  final bool isFromOnboarding;
   
   const ChallengeSetupScreen({
     super.key, 
     required this.characterType,
     required this.monthlyIncome,
     required this.fixedExpenses,
+    this.isFromOnboarding = true,
   });
 
   @override
@@ -84,7 +86,13 @@ class _ChallengeSetupScreenState extends State<ChallengeSetupScreen> {
       // 3. 챌린지 저장
       await ChallengeService.createChallenges(uid: uid, challenges: selected);
       
-      if (mounted) context.go('/home');
+      if (mounted) {
+        if (widget.isFromOnboarding) {
+          context.go('/home');
+        } else {
+          context.pop();
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

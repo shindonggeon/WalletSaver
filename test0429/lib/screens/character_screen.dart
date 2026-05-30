@@ -67,6 +67,25 @@ class CharacterScreen extends StatelessWidget {
                     _buildProfileCard(charEmoji, charName, charLevel),
                     const SizedBox(height: 16),
                     _buildStatsRow(),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          context.push('/manage-finance');
+                        },
+                        icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
+                        label: const Text('고정 지출 및 수입 관리'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.white,
+                          foregroundColor: AppColors.primary,
+                          elevation: 0,
+                          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     Text('나의 목표 (챌린지) 관리', style: AppTextStyles.sectionHeader),
                     const SizedBox(height: 12),
@@ -167,11 +186,25 @@ class CharacterScreen extends StatelessWidget {
             children: [
               Text('진행 중인 챌린지', style: AppTextStyles.bodyBold.copyWith(color: AppColors.primary)),
               GestureDetector(
-                onTap: () {
+                onTap: () async {
+                  // 고정 지출 총합 계산
+                  int totalFixed = 0;
+                  try {
+                    final snap = await FirebaseFirestore.instance
+                        .collection(CollectionKeys.users)
+                        .doc(uid)
+                        .collection(CollectionKeys.fixedExpenses)
+                        .get();
+                    totalFixed = snap.docs.fold<int>(
+                        0, (sum, doc) => sum + (doc.data()['amount'] as num).toInt());
+                  } catch (_) {}
+
+                  if (!context.mounted) return;
                   context.push('/onboarding/challenge-setup', extra: {
                     'characterType': userData['characterType'] as String? ?? 'ant_shopping',
                     'monthlyIncome': userData['monthlyIncome'] as int? ?? 0,
-                    'fixedExpenses': userData['fixedExpenses'] as int? ?? 0,
+                    'fixedExpenses': totalFixed,
+                    'isFromOnboarding': false,
                   });
                 },
                 child: Container(
