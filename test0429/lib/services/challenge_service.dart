@@ -72,16 +72,22 @@ class ChallengeService {
     await _ref(uid).doc(challengeId).update(data);
   }
 
-  /// 챌린지 완료 처리
+  /// 챌린지 완료 처리 및 유저 레벨업
   static Future<void> completeChallenge({
     required String uid,
     required String challengeId,
   }) async {
-    await updateChallenge(
-      uid: uid,
-      challengeId: challengeId,
-      data: {'isActive': false},
-    );
+    final batch = _db.batch();
+    
+    // 1. 챌린지 비활성화
+    final challengeRef = _ref(uid).doc(challengeId);
+    batch.update(challengeRef, {'isActive': false});
+
+    // 2. 유저 레벨 증가
+    final userRef = _db.collection(CollectionKeys.users).doc(uid);
+    batch.update(userRef, {'level': FieldValue.increment(1)});
+
+    await batch.commit();
   }
 
   // ─── Delete ────────────────────────────────────────────────────────────────

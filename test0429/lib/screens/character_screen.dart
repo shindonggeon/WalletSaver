@@ -263,9 +263,83 @@ class CharacterScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.check_circle_outline, color: AppColors.primary),
             tooltip: '완료하기',
-            onPressed: () {
-              ChallengeService.completeChallenge(uid: uid, challengeId: challenge.id);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('목표를 달성했습니다! 🎉')));
+            onPressed: () async {
+              // 진행 중 표시를 위해 스낵바 먼저 띄우기
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('목표 달성 처리 중...'), duration: Duration(milliseconds: 500)));
+              
+              await ChallengeService.completeChallenge(uid: uid, challengeId: challenge.id);
+              
+              if (!context.mounted) return;
+              
+              // 최신 레벨 가져오기
+              final userDoc = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).get();
+              final newLevel = userDoc.data()?['level'] as int? ?? 1;
+              
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              
+              showDialog(
+                context: context,
+                builder: (context) => Dialog(
+                  backgroundColor: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        )
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('🎉', style: TextStyle(fontSize: 60)),
+                        const SizedBox(height: 16),
+                        Text(
+                          '레벨 업!',
+                          style: AppTextStyles.greetingTitle.copyWith(color: AppColors.primary, fontSize: 24),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '축하합니다!\n목표를 달성하여 캐릭터가 성장했습니다.',
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.body,
+                        ),
+                        const SizedBox(height: 24),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            'Lv.$newLevel',
+                            style: AppTextStyles.heroAmount.copyWith(color: AppColors.primary, fontSize: 32),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('확인', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
             },
           ),
           IconButton(
