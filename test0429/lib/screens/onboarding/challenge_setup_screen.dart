@@ -7,6 +7,7 @@ import '../../models/challenge.dart';
 import '../../services/challenge_service.dart';
 import '../../services/user_service.dart';
 import '../../services/budget_service.dart';
+import '../../constants/app_constants.dart';
 class ChallengeSetupScreen extends StatefulWidget {
   final String characterType;
   final int monthlyIncome;
