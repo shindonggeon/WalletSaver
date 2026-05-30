@@ -110,12 +110,7 @@ class _FinanceSetupScreenState extends State<FinanceSetupScreen> {
       ),
     );
   }
-<<<<<<< Updated upstream
-=======
 
-  int get totalFixed => fixedExpenses.fold(0, (s, e) => s + (e['amount'] as int));
-  int get available => _income - totalFixed;
->>>>>>> Stashed changes
 
   @override
   Widget build(BuildContext context) {
@@ -144,10 +139,7 @@ class _FinanceSetupScreenState extends State<FinanceSetupScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _incomeController,
-<<<<<<< Updated upstream
-=======
-                    decoration: const InputDecoration(hintText: '예: 2500000', suffixText: '원'),
->>>>>>> Stashed changes
+
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(

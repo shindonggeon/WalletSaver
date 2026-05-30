@@ -16,10 +16,6 @@ import 'screens/ai_screen.dart';
 import 'screens/character_screen.dart';
 import 'screens/danger_zone_screen.dart';
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart';
-import 'services/budget_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

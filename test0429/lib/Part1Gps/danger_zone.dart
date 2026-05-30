@@ -1,3 +1,4 @@
+import '../constants/app_constants.dart';
 
 /// 사용자가 설정한 위험 지역(쇼핑몰, 백화점 등) 정보를 담는 데이터 모델 클래스입니다.
 class DangerZone {
