@@ -36,7 +36,7 @@ class Budget {
     );
   }
 
-  /// 오늘 쓸 수 있는 돈 계산 로직 수정 (spentToday 반영)
+  /// 오늘 쓸 수 있는 돈 계산 로직 (남은 돈 / 남은 일 수)
   static Budget calculate({
     required int monthlyIncome,
     required int fixedExpenses,
@@ -48,13 +48,10 @@ class Budget {
     final totalSpent = totalSpentBeforeToday + spentToday;
     final remainingBudget = totalBudget - totalSpent;
     
-    // 오늘 시작 시점 기준으로 계산한 하루 권장 예산
-    final recommendedToday = daysLeftInMonth > 0 
-        ? ((totalBudget - totalSpentBeforeToday) / daysLeftInMonth).floor() 
+    // 사용자가 요청한 단순 남은 돈 / 남은 일 수 계산
+    final todayBudget = daysLeftInMonth > 0 
+        ? (remainingBudget / daysLeftInMonth).floor() 
         : 0;
-        
-    // 오늘 쓸 수 있는 돈 = 하루 권장 예산 - 오늘 쓴 돈
-    final todayBudget = recommendedToday - spentToday;
 
     return Budget(
       totalBudget: totalBudget,

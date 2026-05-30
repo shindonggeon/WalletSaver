@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
+import '../constants/app_constants.dart';
+import '../services/challenge_service.dart';
+import '../models/challenge.dart';
 
 class CharacterScreen extends StatelessWidget {
   const CharacterScreen({super.key});
 
   // ── Dummy Data ──────────────────────────────────────────
-  static const String charEmoji = '🐿️';
-  static const String charName = '알뜰한 다람쥐';
-  static const int charLevel = 12;
   static const int recordDays = 45;
   static const int monthlyExpense = 340000;
   static const int goalAchievedCount = 3;
@@ -27,37 +31,61 @@ class CharacterScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<User?>();
+    if (user == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final uid = user.uid;
+
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            backgroundColor: AppColors.bgPage,
-            pinned: true,
-            floating: true,
-            title: Text('내 캐릭터', style: AppTextStyles.pageTitle),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _buildProfileCard(),
-                const SizedBox(height: 16),
-                _buildStatsRow(),
-                const SizedBox(height: 24),
-                Text('지출 리포트', style: AppTextStyles.sectionHeader),
-                const SizedBox(height: 12),
-                _buildChartsCard(),
-              ]),
-            ),
-          ),
-        ],
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).snapshots(),
+        builder: (context, userSnap) {
+          if (!userSnap.hasData) return const Center(child: CircularProgressIndicator());
+          
+          final userData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
+          final characterType = userData['characterType'] as String? ?? 'ant_shopping';
+          final charLevel = userData['level'] as int? ?? 1;
+          final charInfo = CharacterTypes.characterData[characterType] ?? CharacterTypes.characterData['ant_shopping']!;
+          final charEmoji = charInfo['emoji'] ?? '🐜';
+          final charName = charInfo['name'] ?? '알뜰한 개미';
+
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                backgroundColor: AppColors.bgPage,
+                pinned: true,
+                floating: true,
+                title: Text('내 캐릭터', style: AppTextStyles.pageTitle),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _buildProfileCard(charEmoji, charName, charLevel),
+                    const SizedBox(height: 16),
+                    _buildStatsRow(),
+                    const SizedBox(height: 24),
+                    Text('나의 목표 (챌린지) 관리', style: AppTextStyles.sectionHeader),
+                    const SizedBox(height: 12),
+                    _buildGoalsCard(context, uid, userData),
+                    const SizedBox(height: 24),
+                    Text('지출 리포트', style: AppTextStyles.sectionHeader),
+                    const SizedBox(height: 12),
+                    _buildChartsCard(),
+                  ]),
+                ),
+              ),
+            ],
+          );
+        }
       ),
     );
   }
 
-  Widget _buildProfileCard() {
+  Widget _buildProfileCard(String emoji, String name, int level) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -79,7 +107,7 @@ class CharacterScreen extends StatelessWidget {
               border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
             ),
             alignment: Alignment.center,
-            child: Text(charEmoji, style: const TextStyle(fontSize: 40)),
+            child: Text(emoji, style: const TextStyle(fontSize: 40)),
           ),
           const SizedBox(width: 20),
           Expanded(
@@ -88,7 +116,7 @@ class CharacterScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(charName, style: AppTextStyles.greetingTitle.copyWith(color: Colors.white)),
+                    Text(name, style: AppTextStyles.greetingTitle.copyWith(color: Colors.white)),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -96,7 +124,7 @@ class CharacterScreen extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text('Lv.$charLevel', style: AppTextStyles.micro.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+                      child: Text('Lv.$level', style: AppTextStyles.micro.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
@@ -120,6 +148,102 @@ class CharacterScreen extends StatelessWidget {
         const SizedBox(width: 12),
         _StatBox(label: '절약 일수', value: '$savingDays일', icon: Icons.savings, color: AppColors.stateSafe),
       ],
+    );
+  }
+
+  Widget _buildGoalsCard(BuildContext context, String uid, Map<String, dynamic> userData) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('진행 중인 챌린지', style: AppTextStyles.bodyBold.copyWith(color: AppColors.primary)),
+              GestureDetector(
+                onTap: () {
+                  context.push('/onboarding/challenge-setup', extra: {
+                    'characterType': userData['characterType'] as String? ?? 'ant_shopping',
+                    'monthlyIncome': userData['monthlyIncome'] as int? ?? 0,
+                    'fixedExpenses': userData['fixedExpenses'] as int? ?? 0,
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text('+ 추가', style: AppTextStyles.captionNormal.copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          StreamBuilder<List<Challenge>>(
+            stream: ChallengeService.activeChallengesStream(uid),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final challenges = snapshot.data ?? [];
+              if (challenges.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('현재 진행 중인 목표가 없습니다.', style: TextStyle(color: AppColors.textHint, fontSize: 14)),
+                );
+              }
+              return Column(
+                children: challenges.map((c) => _buildChallengeItem(context, uid, c)).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChallengeItem(BuildContext context, String uid, Challenge challenge) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.bgPage,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Text(challenge.emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              challenge.title,
+              style: AppTextStyles.bodyBold.copyWith(fontSize: 14),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.check_circle_outline, color: AppColors.primary),
+            tooltip: '완료하기',
+            onPressed: () {
+              ChallengeService.completeChallenge(uid: uid, challengeId: challenge.id);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('목표를 달성했습니다! 🎉')));
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppColors.textHint),
+            tooltip: '삭제하기',
+            onPressed: () {
+              ChallengeService.deleteChallenge(uid: uid, challengeId: challenge.id);
+            },
+          ),
+        ],
+      ),
     );
   }
 
