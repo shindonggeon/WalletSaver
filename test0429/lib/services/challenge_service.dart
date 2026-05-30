@@ -42,17 +42,23 @@ class ChallengeService {
   static Stream<List<Challenge>> activeChallengesStream(String uid) {
     return _ref(uid)
         .where('isActive', isEqualTo: true)
-        .orderBy('startedAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(Challenge.fromDoc).toList());
+        .map((snap) {
+          final list = snap.docs.map(Challenge.fromDoc).toList();
+          list.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+          return list;
+        });
   }
 
   /// 전체 챌린지 실시간 스트림
   static Stream<List<Challenge>> allChallengesStream(String uid) {
     return _ref(uid)
-        .orderBy('startedAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(Challenge.fromDoc).toList());
+        .map((snap) {
+          final list = snap.docs.map(Challenge.fromDoc).toList();
+          list.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+          return list;
+        });
   }
 
   // ─── Update ────────────────────────────────────────────────────────────────

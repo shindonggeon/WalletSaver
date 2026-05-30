@@ -92,12 +92,21 @@ class _LedgerScreenState extends State<LedgerScreen> {
                       spentAt: Timestamp.now(),
                     );
 
-                    // 임시 수입/고정지출 값 (추후 User 모델에서 연동)
+                    // 실제 수입/고정지출 값 조회
+                    int income = 2500000;
+                    int fixedExp = 500000;
+                    try {
+                      final userDoc = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).get();
+                      income = userDoc.data()?['monthlyIncome'] as int? ?? 0;
+                      final fixedSnap = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).collection(CollectionKeys.fixedExpenses).get();
+                      fixedExp = fixedSnap.docs.fold<int>(0, (acc, doc) => acc + (doc.data()['amount'] as num).toInt());
+                    } catch (_) {}
+
                     await BudgetService.addExpense(
                       uid: uid,
                       expense: expense,
-                      monthlyIncome: 2500000,
-                      fixedExpenses: 500000,
+                      monthlyIncome: income,
+                      fixedExpenses: fixedExp,
                     );
 
                     _merchantController.clear();
@@ -322,9 +331,18 @@ class _LedgerScreenState extends State<LedgerScreen> {
         margin: const EdgeInsets.only(bottom: 14),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
-      onDismissed: (direction) {
+      onDismissed: (direction) async {
+        int income = 2500000;
+        int fixedExp = 500000;
+        try {
+          final userDoc = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).get();
+          income = userDoc.data()?['monthlyIncome'] as int? ?? 0;
+          final fixedSnap = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).collection(CollectionKeys.fixedExpenses).get();
+          fixedExp = fixedSnap.docs.fold<int>(0, (acc, doc) => acc + (doc.data()['amount'] as num).toInt());
+        } catch (_) {}
+
         BudgetService.deleteExpense(
-          uid: uid, expenseId: item.id, monthlyIncome: 2500000, fixedExpenses: 500000
+          uid: uid, expenseId: item.id, monthlyIncome: income, fixedExpenses: fixedExp
         );
       },
       child: Padding(
