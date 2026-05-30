@@ -196,7 +196,7 @@ class CharacterScreen extends StatelessWidget {
                         .collection(CollectionKeys.fixedExpenses)
                         .get();
                     totalFixed = snap.docs.fold<int>(
-                        0, (sum, doc) => sum + (doc.data()['amount'] as num).toInt());
+                        0, (acc, doc) => acc + (doc.data()['amount'] as num).toInt());
                   } catch (_) {}
 
                   if (!context.mounted) return;

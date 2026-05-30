@@ -49,7 +49,7 @@ class UserService {
     final snap = await _fixedExpensesRef(uid).get();
     return snap.docs.fold<int>(
       0,
-      (sum, doc) => sum + (doc.data()['amount'] as num).toInt(),
+      (acc, doc) => acc + (doc.data()['amount'] as num).toInt(),
     );
   }
 

@@ -9,6 +9,8 @@ import '../services/budget_service.dart';
 import '../models/budget.dart';
 import '../models/expense.dart';
 import '../constants/app_constants.dart';
+import '../models/challenge.dart';
+import '../services/challenge_service.dart';
 
 // Number format helper (간단한 구현)
 String formatNumber(int n) =>
@@ -96,10 +98,35 @@ class HomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
 
-                        const ChallengeCard(
-                          challengeName: '카페 주 3회 이하',
-                          progressText: '이번주 2회 / 목표 3회',
-                          isAchieving: true,
+                        StreamBuilder<List<Challenge>>(
+                          stream: ChallengeService.activeChallengesStream(FirebaseAuth.instance.currentUser?.uid ?? ''),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const SizedBox(height: 80, child: Center(child: CircularProgressIndicator()));
+                            }
+                            final challenges = snapshot.data ?? [];
+                            if (challenges.isEmpty) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(vertical: 24),
+                                decoration: BoxDecoration(
+                                  color: AppColors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Center(
+                                  child: Text('진행 중인 목표가 없습니다.', style: TextStyle(color: AppColors.textHint)),
+                                ),
+                              );
+                            }
+                            
+                            // 진행 중인 첫 번째 챌린지를 표시하거나 리스트로 보여줍니다.
+                            // 일단 가장 먼저 시작한 챌린지 1개만 강조해서 표시
+                            final topChallenge = challenges.first;
+                            return ChallengeCard(
+                              challengeName: '${topChallenge.emoji} ${topChallenge.title}',
+                              progressText: '진행 중',
+                              isAchieving: true,
+                            );
+                          },
                         ),
                         const SizedBox(height: 20),
 

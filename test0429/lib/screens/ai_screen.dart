@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../services/ai_service.dart';
+import '../services/budget_service.dart';
+import '../models/budget.dart';
+import '../models/expense.dart';
 import '../theme/app_theme.dart';
+import '../constants/app_constants.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AiScreen extends StatefulWidget {
   const AiScreen({super.key});
@@ -12,24 +18,13 @@ class AiScreen extends StatefulWidget {
 }
 
 class _AiScreenState extends State<AiScreen> {
-  late final Future<String> monthlyReportFuture;
+  Future<String>? monthlyReportFuture;
+  bool _isLoading = true;
+  String _reportDate = '';
+  String _topCategoryInsight = '이번 달 데이터를 분석 중입니다...';
+  List<Map<String, dynamic>> _categoryStats = [];
 
-  // ── Dummy Data ──────────────────────────────────────────
-  static const String reportDate = '2025.04.29 생성';
-  static const String topCategoryInsight = '이번 달 쇼핑(134,000원)이 가장 많은 지출을 차지했어요.';
-  static const String changeInsight = '지난달 대비 카페 지출이 23% 증가했습니다.';
-  static const String habitInsight =
-      '저번주 이 시간에도 스타벅스에 5,500원 쓰셨는데\n혹시 습관이 된 건 아닌가요?';
-
-  static const List<Map<String, dynamic>> categoryStats = [
-    {'name': '쇼핑', 'ratio': 28.0, 'color': Color(0xFF7C63F5), 'change': 12.0},
-    {'name': '식비', 'ratio': 27.0, 'color': Color(0xFFF59E0B), 'change': -2.5},
-    {'name': '카페', 'ratio': 19.0, 'color': Color(0xFF92400E), 'change': 23.0},
-    {'name': '생활', 'ratio': 11.0, 'color': Color(0xFF10B981), 'change': -5.2},
-    {'name': '교통', 'ratio': 9.0, 'color': Color(0xFF3B82F6), 'change': 0.0},
-    {'name': '기타', 'ratio': 6.0, 'color': Color(0xFF9CA3AF), 'change': -1.0},
-  ];
-
+  // 아직 실제 위험지역 알림 시스템이 없으므로 임시 데이터를 표시하거나 비워둘 수 있습니다.
   static const List<Map<String, dynamic>> nagHistory = [
     {
       'date': '04.02',
@@ -47,29 +42,127 @@ class _AiScreenState extends State<AiScreen> {
       'msg': '주말 지출 주의! 지난 주말에도 43,000원 썼었어요.',
     },
   ];
-  // ────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _reportDate = '${now.year}.${now.month.toString().padLeft(2, '0')}.${now.day.toString().padLeft(2, '0')} 생성';
+    _loadData();
+  }
 
-    monthlyReportFuture = AiService().generateMonthlyReport(
-      age: 23,
-      totalBudget: 600000,
-      totalSpent: 520000,
-      remainingBudget: 80000,
-      budgetUsageRate: 0.867,
-      categorySpending: {
-        'shopping': 134000,
-        'food': 129000,
-        'cafe': 91000,
-        'living': 53000,
-        'transport': 43000,
-        'etc': 29000,
-      },
-      monthlyGoal: '이번 달 쇼핑 줄이기',
-      characterType: 'lion',
-    );
+  Future<void> _loadData() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      // 1. 유저 정보
+      final userDoc = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).get();
+      final characterType = userDoc.data()?['characterType'] as String? ?? 'lion';
+
+      // 2. 예산 데이터
+      final budgetDoc = await FirebaseFirestore.instance
+          .collection(CollectionKeys.users)
+          .doc(uid)
+          .collection(CollectionKeys.budgets)
+          .doc(BudgetService.currentYearMonth())
+          .get();
+      final budget = budgetDoc.exists ? Budget.fromDoc(budgetDoc) : null;
+      final totalBudget = budget?.totalBudget ?? 0;
+      final totalSpent = budget?.totalSpent ?? 0;
+      final remainingBudget = budget?.remainingBudget ?? 0;
+      final budgetUsageRate = totalBudget > 0 ? totalSpent / totalBudget : 0.0;
+
+      // 3. 지출 내역 (이번 달)
+      final expensesSnap = await FirebaseFirestore.instance
+          .collection(CollectionKeys.users)
+          .doc(uid)
+          .collection(CollectionKeys.expenses)
+          .where('spentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime(now.year, now.month, 1)))
+          .get();
+
+      final expenses = expensesSnap.docs.map((d) => Expense.fromDoc(d)).toList();
+
+      // 카테고리별 집계
+      final Map<String, int> catMap = {};
+      for (var e in expenses) {
+        catMap[e.category] = (catMap[e.category] ?? 0) + e.amount;
+      }
+
+      // 차트용 데이터 가공
+      final sortedEntries = catMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      final totalMapSpent = catMap.values.fold(0, (s, e) => s + e);
+      
+      final colors = [
+        const Color(0xFF7C63F5),
+        const Color(0xFFF59E0B),
+        const Color(0xFF92400E),
+        const Color(0xFF10B981),
+        const Color(0xFF3B82F6),
+        const Color(0xFF9CA3AF),
+      ];
+
+      _categoryStats = [];
+      int colorIndex = 0;
+      for (var entry in sortedEntries) {
+        final ratio = totalMapSpent > 0 ? (entry.value / totalMapSpent) * 100 : 0.0;
+        _categoryStats.add({
+          'name': _getCatName(entry.key),
+          'ratio': double.parse(ratio.toStringAsFixed(1)),
+          'color': colors[colorIndex % colors.length],
+          'change': 0.0, // 더미 대비 증감
+        });
+        colorIndex++;
+      }
+
+      if (_categoryStats.isNotEmpty) {
+        _topCategoryInsight = '이번 달 ${_categoryStats.first['name']}(${_formatWon(sortedEntries.first.value)})이 가장 많은 지출을 차지했어요.';
+      } else {
+        _topCategoryInsight = '이번 달 지출 내역이 아직 없습니다.';
+      }
+
+      // 4. 리포트 생성
+      if (mounted) {
+        setState(() {
+          monthlyReportFuture = AiService().generateMonthlyReport(
+            age: 20, // 나이 기본값
+            totalBudget: totalBudget,
+            totalSpent: totalSpent,
+            remainingBudget: remainingBudget,
+            budgetUsageRate: budgetUsageRate,
+            categorySpending: catMap,
+            monthlyGoal: '이번 달 절약하기',
+            characterType: characterType,
+          );
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('AI 로드 실패: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  DateTime get now => DateTime.now();
+
+  String _getCatName(String cat) {
+    switch (cat) {
+      case 'shopping': return '쇼핑';
+      case 'food': return '식비';
+      case 'cafe': return '카페';
+      case 'transport': return '교통';
+      case 'living': return '생활';
+      case 'leisure': return '여가';
+      case 'convenience': return '편의';
+      default: return '기타';
+    }
+  }
+
+  String _formatWon(int value) {
+    return '${value.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}원';
   }
 
   @override
@@ -89,7 +182,7 @@ class _AiScreenState extends State<AiScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('소리 AI', style: AppTextStyles.pageTitle),
-                Text(reportDate, style: AppTextStyles.captionNormal),
+                Text(_reportDate, style: AppTextStyles.captionNormal),
               ],
             ),
             actions: [
@@ -113,26 +206,28 @@ class _AiScreenState extends State<AiScreen> {
               ),
             ],
           ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _buildDarkInsightCard(),
-                const SizedBox(height: 24),
-                Text('소비 인사이트', style: AppTextStyles.sectionHeader),
-                const SizedBox(height: 12),
-                _buildHorizontalInsightCards(),
-                const SizedBox(height: 24),
-                Text('카테고리별 지출', style: AppTextStyles.sectionHeader),
-                const SizedBox(height: 12),
-                _buildDonutSection(),
-                const SizedBox(height: 24),
-                Text('최근 위험 지역 진입 알림', style: AppTextStyles.sectionHeader),
-                const SizedBox(height: 12),
-                ...nagHistory.map((h) => _buildNagItem(h)),
-              ]),
-            ),
-          ),
+          _isLoading 
+            ? const SliverFillRemaining(child: Center(child: CircularProgressIndicator()))
+            : SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _buildDarkInsightCard(),
+                    const SizedBox(height: 24),
+                    Text('소비 인사이트', style: AppTextStyles.sectionHeader),
+                    const SizedBox(height: 12),
+                    _buildHorizontalInsightCards(),
+                    const SizedBox(height: 24),
+                    Text('카테고리별 지출', style: AppTextStyles.sectionHeader),
+                    const SizedBox(height: 12),
+                    _buildDonutSection(),
+                    const SizedBox(height: 24),
+                    Text('최근 위험 지역 진입 알림', style: AppTextStyles.sectionHeader),
+                    const SizedBox(height: 12),
+                    ...nagHistory.map((h) => _buildNagItem(h)),
+                  ]),
+                ),
+              ),
         ],
       ),
     );
@@ -161,41 +256,50 @@ class _AiScreenState extends State<AiScreen> {
         children: [
           _AiBadge(),
           const SizedBox(height: 16),
-          FutureBuilder<String>(
-            future: monthlyReportFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+          if (monthlyReportFuture == null)
+            Text(
+              'AI 리포트를 생성할 데이터가 부족합니다.',
+              style: AppTextStyles.heroAmount.copyWith(
+                fontSize: 18,
+                letterSpacing: 0,
+              ),
+            )
+          else
+            FutureBuilder<String>(
+              future: monthlyReportFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Text(
+                    'AI가 이번 달 소비 리포트를 생성하는 중입니다...',
+                    style: AppTextStyles.heroAmount.copyWith(
+                      fontSize: 18,
+                      letterSpacing: 0,
+                    ),
+                  );
+                }
+
                 return Text(
-                  'AI가 이번 달 소비 리포트를 생성하는 중입니다...',
+                  snapshot.data ?? _topCategoryInsight,
                   style: AppTextStyles.heroAmount.copyWith(
                     fontSize: 18,
                     letterSpacing: 0,
                   ),
                 );
-              }
-
-              return Text(
-                snapshot.data ?? topCategoryInsight,
-                style: AppTextStyles.heroAmount.copyWith(
-                  fontSize: 18,
-                  letterSpacing: 0,
-                ),
-              );
-            },
-          ),
+              },
+            ),
           const SizedBox(height: 16),
           Divider(color: Colors.white.withValues(alpha: 0.15)),
           const SizedBox(height: 12),
           _InsightRow(
             icon: Icons.show_chart,
             color: AppColors.stateDanger,
-            text: changeInsight,
+            text: _topCategoryInsight,
           ),
           const SizedBox(height: 10),
-          _InsightRow(
+          const _InsightRow(
             icon: Icons.psychology,
             color: AppColors.stateCaution,
-            text: habitInsight,
+            text: '소비 패턴을 분석하여 스마트한 지출을 도와드려요.',
           ),
         ],
       ),
@@ -298,7 +402,9 @@ class _AiScreenState extends State<AiScreen> {
                   PieChartData(
                     sectionsSpace: 3,
                     centerSpaceRadius: 55,
-                    sections: categoryStats
+                    sections: _categoryStats.isEmpty
+                      ? [PieChartSectionData(color: AppColors.bgPage, value: 100, title: '', radius: 22)]
+                      : _categoryStats
                         .map(
                           (s) => PieChartSectionData(
                             color: s['color'],
@@ -328,7 +434,7 @@ class _AiScreenState extends State<AiScreen> {
           ),
           const SizedBox(height: 16),
           Column(
-            children: categoryStats.map((s) => _buildCategoryRow(s)).toList(),
+            children: _categoryStats.map((s) => _buildCategoryRow(s)).toList(),
           ),
         ],
       ),
