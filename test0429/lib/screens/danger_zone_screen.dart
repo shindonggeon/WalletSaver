@@ -5,6 +5,8 @@ import '../Part1Gps/monitoring.dart';
 import '../services/notification_service.dart';
 import '../services/ai_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class DangerZoneScreen extends StatefulWidget {
   const DangerZoneScreen({super.key});
@@ -20,9 +22,9 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
   bool isTesting = false;
 
   final List<Map<String, dynamic>> dangerZones = [
-    {'name': '올리브영 강남본점', 'address': '서울 서초구 강남대로', 'isOn': true, 'emoji': '💄', 'category': 'shopping'},
-    {'name': '스타벅스 파미에스테이션', 'address': '서울 서초구 사평대로', 'isOn': true, 'emoji': '☕', 'category': 'cafe'},
-    {'name': '현대 프리미엄 아울렛', 'address': '경기 남양주시', 'isOn': false, 'emoji': '🛍️', 'category': 'shopping'},
+    {'name': '올리브영 강남본점', 'address': '서울 서초구 강남대로', 'isOn': true, 'emoji': '💄', 'category': 'shopping', 'lat': 37.498095, 'lng': 127.027610},
+    {'name': '스타벅스 파미에스테이션', 'address': '서울 서초구 사평대로', 'isOn': true, 'emoji': '☕', 'category': 'cafe', 'lat': 37.504820, 'lng': 127.004944},
+    {'name': '현대 프리미엄 아울렛', 'address': '경기 남양주시', 'isOn': false, 'emoji': '🛍️', 'category': 'shopping', 'lat': 37.618640, 'lng': 127.155823},
   ];
   // ────────────────────────────────────────────────────────
 
@@ -111,20 +113,56 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
                 _buildStatusHeader(activeCount),
                 const SizedBox(height: 20),
 
-                // 지도 자리 표시
+                // 실제 지도 뷰
                 Container(
-                  height: 200,
+                  height: 250,
                   decoration: BoxDecoration(
-                    color: AppColors.tagBg,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))
+                    ]
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  clipBehavior: Clip.antiAlias,
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter: const LatLng(37.5015, 127.0163), // 강남과 파미에스테이션 사이
+                      initialZoom: 13.0,
+                    ),
                     children: [
-                      Icon(Icons.map_outlined, size: 48, color: AppColors.primary.withValues(alpha: 0.4)),
-                      const SizedBox(height: 8),
-                      Text('지도 연동 예정', style: AppTextStyles.body.copyWith(color: AppColors.primary.withValues(alpha: 0.6))),
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.test0429',
+                      ),
+                      MarkerLayer(
+                        markers: dangerZones.map((zone) {
+                          final bool isOn = zone['isOn'];
+                          return Marker(
+                            point: LatLng(zone['lat'], zone['lng']),
+                            width: 50,
+                            height: 50,
+                            child: AnimatedScale(
+                              scale: isOn ? 1.0 : 0.7,
+                              duration: const Duration(milliseconds: 300),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: isOn ? AppColors.stateDanger : AppColors.surfaceMuted,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: (isOn ? AppColors.stateDanger : AppColors.textHint).withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                      spreadRadius: 2,
+                                    )
+                                  ],
+                                  border: Border.all(color: Colors.white, width: 2),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(zone['emoji'] ?? '📍', style: const TextStyle(fontSize: 20)),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ],
                   ),
                 ),
