@@ -24,12 +24,17 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
   bool isGpsEnabled = true;
   String selectedNagStrength = '적당히';
   bool isTesting = false;
-
+  List<DangerZone> _localZones = [];
   // ────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    _localZones = [
+      DangerZone(docId: 'dummy_1', uid: 'dummy', zoneName: '올리브영 강남본점', zoneCategory: DangerZoneCategories.mall, latitude: 37.498095, longitude: 127.027610, isEnabled: true),
+      DangerZone(docId: 'dummy_2', uid: 'dummy', zoneName: '스타벅스 파미에스테이션', zoneCategory: DangerZoneCategories.cafe, latitude: 37.504820, longitude: 127.004944, isEnabled: true),
+      DangerZone(docId: 'dummy_3', uid: 'dummy', zoneName: '현대 프리미엄 아울렛', zoneCategory: DangerZoneCategories.dept, latitude: 37.618640, longitude: 127.155823, isEnabled: false),
+    ];
     if (isGpsEnabled) {
       _toggleGps(true);
     }
@@ -112,44 +117,34 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
         isEnabled: true,
       );
 
-      await Zone().addDangerZone(newZone);
+      setState(() {
+        _localZones.add(newZone);
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${result['name']} 구역이 감시망에 추가되었습니다.')));
       }
+      
+      // 파이어베이스 연동은 백그라운드에서 시도만 하고 실패해도 앱 동작에 지장 없도록 처리
+      Zone().addDangerZone(newZone).catchError((e) => print('Firebase save failed: $e'));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final activeCount = _localZones.where((z) => z.isEnabled).length;
 
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: uid == null 
-        ? const Center(child: Text('로그인이 필요합니다.'))
-        : StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection(CollectionKeys.dangerZones).where('uid', isEqualTo: uid).snapshots(),
-        builder: (context, snapshot) {
-          final List<DangerZone> zones = [];
-          if (snapshot.hasData) {
-            for (var doc in snapshot.data!.docs) {
-              zones.add(DangerZone.fromMap(doc.data() as Map<String, dynamic>));
-            }
-          }
-          final activeCount = zones.where((z) => z.isEnabled).length;
-
-          Widget mapWidget = FlutterMap(
-            options: MapOptions(
-              initialCenter: zones.isNotEmpty ? LatLng(zones.first.latitude, zones.first.longitude) : const LatLng(37.5015, 127.0163),
-              initialZoom: 13.0,
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.test0429',
-              ),
-              MarkerLayer(
-                markers: zones.map((zone) {
+    Widget mapWidget = FlutterMap(
+      options: MapOptions(
+        initialCenter: _localZones.isNotEmpty ? LatLng(_localZones.first.latitude, _localZones.first.longitude) : const LatLng(37.5015, 127.0163),
+        initialZoom: 13.0,
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.example.test0429',
+        ),
+        MarkerLayer(
+          markers: _localZones.map((zone) {
                   return Marker(
                     point: LatLng(zone.latitude, zone.longitude),
                     width: 50,
@@ -180,19 +175,21 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
             ],
           );
 
-          if (!isGpsEnabled) {
-            mapWidget = ColorFiltered(
-              colorFilter: const ColorFilter.matrix(<double>[
-                0.2126, 0.7152, 0.0722, 0, 0,
-                0.2126, 0.7152, 0.0722, 0, 0,
-                0.2126, 0.7152, 0.0722, 0, 0,
-                0,      0,      0,      1, 0,
-              ]),
-              child: mapWidget,
-            );
-          }
+    if (!isGpsEnabled) {
+      mapWidget = ColorFiltered(
+        colorFilter: const ColorFilter.matrix(<double>[
+          0.2126, 0.7152, 0.0722, 0, 0,
+          0.2126, 0.7152, 0.0722, 0, 0,
+          0.2126, 0.7152, 0.0722, 0, 0,
+          0,      0,      0,      1, 0,
+        ]),
+        child: mapWidget,
+      );
+    }
 
-          return CustomScrollView(
+    return Scaffold(
+      backgroundColor: AppColors.bgPage,
+      body: CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
               SliverAppBar(
@@ -240,13 +237,13 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    if (zones.isEmpty)
+                    if (_localZones.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
                         child: Center(child: Text('등록된 위험 지역이 없습니다.', style: TextStyle(color: AppColors.textHint))),
                       )
                     else
-                      ...zones.map((zone) => _buildZoneItem(zone)),
+                      ..._localZones.map((zone) => _buildZoneItem(zone)),
                     const SizedBox(height: 24),
 
                     // 잔소리 강도 선택
@@ -257,9 +254,7 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
     );
   }
 
@@ -367,8 +362,22 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
               ),
               Switch(
                 value: isOn,
-                onChanged: isLocked ? null : (val) async {
-                  await Zone().toggleZone(zone.docId, val);
+                onChanged: isLocked ? null : (val) {
+                  setState(() {
+                    zone = DangerZone(
+                      docId: zone.docId,
+                      uid: zone.uid,
+                      zoneName: zone.zoneName,
+                      zoneCategory: zone.zoneCategory,
+                      latitude: zone.latitude,
+                      longitude: zone.longitude,
+                      isEnabled: val,
+                    );
+                    final index = _localZones.indexWhere((z) => z.docId == zone.docId);
+                    if (index != -1) _localZones[index] = zone;
+                  });
+                  // 백그라운드 연동 시도
+                  Zone().toggleZone(zone.docId, val).catchError((e) => print('Toggle save failed: $e'));
                 },
                 activeThumbColor: isLocked ? Colors.grey : AppColors.stateDanger,
                 activeTrackColor: (isLocked ? Colors.grey : AppColors.stateDanger).withValues(alpha: 0.2),
