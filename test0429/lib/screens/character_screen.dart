@@ -47,6 +47,7 @@ class CharacterScreen extends StatelessWidget {
           final userData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
           final characterType = userData['characterType'] as String? ?? 'ant_shopping';
           final charLevel = userData['level'] as int? ?? 1;
+          final charXp = userData['exp'] as int? ?? 0;
           final charInfo = CharacterTypes.characterData[characterType] ?? CharacterTypes.characterData['ant_shopping']!;
           final charEmoji = charInfo['emoji'] ?? '🐜';
           final charName = charInfo['name'] ?? '알뜰한 개미';
@@ -64,7 +65,9 @@ class CharacterScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    _buildProfileCard(charEmoji, charName, charLevel),
+                    _buildProfileCard(charEmoji, charName, charLevel, charXp),
+                    const SizedBox(height: 16),
+                    _buildBadgeCollection(charLevel),
                     const SizedBox(height: 16),
                     _buildStatsRow(),
                     const SizedBox(height: 16),
@@ -104,7 +107,16 @@ class CharacterScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileCard(String emoji, String name, int level) {
+  Widget _buildProfileCard(String emoji, String name, int level, int xp) {
+    final requiredXp = level * 20 + 10;
+    final progress = (xp / requiredXp).clamp(0.0, 1.0);
+    
+    // 칭호 결정
+    String title = '🌱 초보 절약러';
+    if (level >= 10) title = '👑 저축의 달인';
+    else if (level >= 5) title = '🌳 프로 절약러';
+    else if (level >= 3) title = '🌿 견습 짠돌이';
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -116,42 +128,129 @@ class CharacterScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 8))],
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 80, height: 80,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
-            ),
-            alignment: Alignment.center,
-            child: Text(emoji, style: const TextStyle(fontSize: 40)),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            children: [
+              Container(
+                width: 80, height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+                ),
+                alignment: Alignment.center,
+                child: Text(emoji, style: const TextStyle(fontSize: 40)),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: AppTextStyles.greetingTitle.copyWith(color: Colors.white)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text('Lv.$level', style: AppTextStyles.micro.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+                    Text(title, style: AppTextStyles.micro.copyWith(color: AppColors.primaryLight, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(name, style: AppTextStyles.greetingTitle.copyWith(color: Colors.white)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text('Lv.$level', style: AppTextStyles.micro.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 6),
+                    Text('함께 기록한 지 $recordDays일째!',
+                        style: AppTextStyles.captionNormal.copyWith(color: Colors.white70)),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text('함께 기록한 지 $recordDays일째!',
-                    style: AppTextStyles.captionNormal.copyWith(color: Colors.white70)),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // 경험치 바
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('EXP', style: AppTextStyles.micro.copyWith(color: Colors.white70, fontWeight: FontWeight.bold)),
+                  Text('$xp / $requiredXp', style: AppTextStyles.micro.copyWith(color: Colors.white70)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: Colors.white.withValues(alpha: 0.15),
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryLight),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBadgeCollection(int level) {
+    // 뱃지 데이터
+    final allBadges = [
+      {'level': 1, 'icon': '👶', 'name': '시작'},
+      {'level': 3, 'icon': '🌱', 'name': '씨앗'},
+      {'level': 5, 'icon': '🌿', 'name': '새싹'},
+      {'level': 10, 'icon': '🌳', 'name': '나무'},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('나의 뱃지 컬렉션', style: AppTextStyles.sectionHeader),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: allBadges.map((b) {
+              final isUnlocked = level >= (b['level'] as int);
+              return Column(
+                children: [
+                  Container(
+                    width: 56, height: 56,
+                    decoration: BoxDecoration(
+                      color: isUnlocked ? AppColors.tagBg : AppColors.surface,
+                      shape: BoxShape.circle,
+                      border: isUnlocked ? Border.all(color: AppColors.primaryLight, width: 2) : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      isUnlocked ? (b['icon'] as String) : '🔒',
+                      style: TextStyle(fontSize: 24, color: isUnlocked ? null : AppColors.textHint),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    b['name'] as String,
+                    style: AppTextStyles.micro.copyWith(
+                      color: isUnlocked ? AppColors.textPrimary : AppColors.textHint,
+                      fontWeight: isUnlocked ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -267,79 +366,79 @@ class CharacterScreen extends StatelessWidget {
               // 진행 중 표시를 위해 스낵바 먼저 띄우기
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('목표 달성 처리 중...'), duration: Duration(milliseconds: 500)));
               
-              await ChallengeService.completeChallenge(uid: uid, challengeId: challenge.id);
-              
-              if (!context.mounted) return;
-              
-              // 최신 레벨 가져오기
-              final userDoc = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).get();
-              final newLevel = userDoc.data()?['level'] as int? ?? 1;
+              final newLevel = await ChallengeService.completeChallenge(uid: uid, challengeId: challenge.id);
               
               if (!context.mounted) return;
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
               
-              showDialog(
-                context: context,
-                builder: (context) => Dialog(
-                  backgroundColor: Colors.transparent,
-                  child: Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        )
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('🎉', style: TextStyle(fontSize: 60)),
-                        const SizedBox(height: 16),
-                        Text(
-                          '레벨 업!',
-                          style: AppTextStyles.greetingTitle.copyWith(color: AppColors.primary, fontSize: 24),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          '축하합니다!\n목표를 달성하여 캐릭터가 성장했습니다.',
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.body,
-                        ),
-                        const SizedBox(height: 24),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(16),
+              if (newLevel != null) {
+                showDialog(
+                  context: context,
+                  builder: (context) => Dialog(
+                    backgroundColor: Colors.transparent,
+                    child: Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          )
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('🎉', style: TextStyle(fontSize: 60)),
+                          const SizedBox(height: 16),
+                          Text(
+                            '레벨 업!',
+                            style: AppTextStyles.greetingTitle.copyWith(color: AppColors.primary, fontSize: 24),
                           ),
-                          child: Text(
-                            'Lv.$newLevel',
-                            style: AppTextStyles.heroAmount.copyWith(color: AppColors.primary, fontSize: 32),
+                          const SizedBox(height: 12),
+                          Text(
+                            '축하합니다!\n새로운 칭호와 뱃지가 해금되었을지도 몰라요!',
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.body,
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          const SizedBox(height: 24),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('확인', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            child: Text(
+                              'Lv.$newLevel',
+                              style: AppTextStyles.heroAmount.copyWith(color: AppColors.primary, fontSize: 32),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 32),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('확인', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('목표 달성! +10 XP 획득 ✨'), duration: Duration(seconds: 2))
+                );
+              }
             },
           ),
           IconButton(

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_constants.dart';
 import '../models/challenge.dart';
+import 'user_service.dart';
 
 // users/{uid}/challenges 컬렉션 CRUD
 class ChallengeService {
@@ -72,22 +73,18 @@ class ChallengeService {
     await _ref(uid).doc(challengeId).update(data);
   }
 
-  /// 챌린지 완료 처리 및 유저 레벨업
-  static Future<void> completeChallenge({
+  /// 챌린지 완료 처리 및 유저 경험치 증가
+  /// 레벨업이 발생하면 새로운 레벨을 반환하고, 아니면 null 반환
+  static Future<int?> completeChallenge({
     required String uid,
     required String challengeId,
   }) async {
-    final batch = _db.batch();
-    
     // 1. 챌린지 비활성화
-    final challengeRef = _ref(uid).doc(challengeId);
-    batch.update(challengeRef, {'isActive': false});
+    await _ref(uid).doc(challengeId).update({'isActive': false});
 
-    // 2. 유저 레벨 증가
-    final userRef = _db.collection(CollectionKeys.users).doc(uid);
-    batch.update(userRef, {'level': FieldValue.increment(1)});
-
-    await batch.commit();
+    // 2. 유저 경험치 추가 및 레벨업 체크 (UserService에 위임)
+    // 챌린지 1개 완료 시마다 10 XP 지급
+    return await UserService.addXp(uid: uid, xpAmount: 10);
   }
 
   // ─── Delete ────────────────────────────────────────────────────────────────

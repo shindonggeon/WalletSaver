@@ -78,18 +78,52 @@ class UserService {
     );
   }
 
-  /// 캐릭터 경험치·레벨 갱신 (챌린지 달성, 지출 절제 시 호출)
-  static Future<void> updateExpAndLevel({
+  /// 챌린지 달성 시 XP 추가 및 레벨업 체크 (트랜잭션 사용)
+  /// 반환값: 레벨업 시 새로운 레벨을 반환, 아니면 null 반환
+  static Future<int?> addXp({
     required String uid,
-    required int exp,
-    required int level,
+    required int xpAmount,
   }) async {
-    await _userRef(uid).set(
-      {'exp': exp, 'level': level},
-      SetOptions(merge: true),
-    );
+    final userRef = _userRef(uid);
+    int? leveledUpTo;
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(userRef);
+      if (!snapshot.exists) return;
+
+      final data = snapshot.data()!;
+      final currentLevel = data['level'] as int? ?? 1;
+      final currentXp = data['exp'] as int? ?? 0;
+
+      final newXp = currentXp + xpAmount;
+      // 레벨 계산: 1->2 (30XP), 2->3 (50XP) ... 
+      // 좀 더 명확하게 레벨마다 필요한 최대 경험치를 별도로 계산
+      final requiredXp = currentLevel * 20 + 10; // Lv1: 30, Lv2: 50, Lv3: 70 ...
+
+      if (newXp >= requiredXp) {
+        // 레벨업 발생
+        final nextLevel = currentLevel + 1;
+        final remainderXp = newXp - requiredXp;
+        
+        transaction.set(userRef, {
+          'level': nextLevel,
+          'exp': remainderXp,
+        }, SetOptions(merge: true));
+        
+        leveledUpTo = nextLevel;
+      } else {
+        // 경험치만 증가
+        transaction.set(userRef, {
+          'exp': newXp,
+        }, SetOptions(merge: true));
+      }
+    });
+
+    return leveledUpTo;
   }
 
-  /// exp 누적 후 레벨 계산: 100 exp마다 1레벨 상승
-  static int calcLevel(int exp) => (exp ~/ 100) + 1;
+  /// 특정 레벨에 필요한 경험치 계산 헬퍼
+  static int getRequiredXp(int level) {
+    return level * 20 + 10;
+  }
 }
