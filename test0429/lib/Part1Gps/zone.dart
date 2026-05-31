@@ -19,18 +19,23 @@ class Zone {
         .set(zone.toMap());
 
     // 2. DB 저장과 동시에 스마트폰 OS의 백그라운드 지오펜싱 목록에 이 장소를 등록합니다.
-    await bg.BackgroundGeolocation.addGeofence(bg.Geofence(
-      identifier: zone.docId,        // DB의 문서 ID와 동일하게 맞춰서 동기화
-      radius: 200,                   // 명세서 요구사항에 따른 반경 200m 설정
-      latitude: zone.latitude,
-      longitude: zone.longitude,
-      notifyOnEntry: true,           // 진입(ENTER) 시점에 이벤트를 발생시킴
-      notifyOnExit: false,           // 영역 밖으로 나갈 때(EXIT)는 이벤트를 무시 (불필요한 알림 방지)
-      extras: {
-        'zoneName': zone.zoneName,   // 나중에 진입 이벤트가 터졌을 때 꺼내 쓰기 위해 저장해 둠
-        'zoneCategory': zone.zoneCategory,
-      },
-    ));
+    try {
+      await bg.BackgroundGeolocation.addGeofence(bg.Geofence(
+        identifier: zone.docId,        // DB의 문서 ID와 동일하게 맞춰서 동기화
+        radius: 200,                   // 명세서 요구사항에 따른 반경 200m 설정
+        latitude: zone.latitude,
+        longitude: zone.longitude,
+        notifyOnEntry: true,           // 진입(ENTER) 시점에 이벤트를 발생시킴
+        notifyOnExit: false,           // 영역 밖으로 나갈 때(EXIT)는 이벤트를 무시 (불필요한 알림 방지)
+        extras: {
+          'zoneName': zone.zoneName,   // 나중에 진입 이벤트가 터졌을 때 꺼내 쓰기 위해 저장해 둠
+          'zoneCategory': zone.zoneCategory,
+        },
+      ));
+    } catch (e) {
+      // 에뮬레이터 환경이거나 위치 권한이 없을 때 플러그인 에러가 발생해도 DB 저장은 유지하도록 예외 처리합니다.
+      print('⚠️ 백그라운드 지오펜스 등록 실패 (에뮬레이터 환경일 수 있음): $e');
+    }
   }
 
   /// 특정 위험 지역의 감시 상태를 켜거나(ON) 끕니다(OFF). (명세서 1-4)
@@ -50,18 +55,22 @@ class Zone {
       final doc = await _firestore.collection(CollectionKeys.dangerZones).doc(docId).get();
       if (doc.exists && doc.data() != null) {
         final zone = DangerZone.fromMap(doc.data()!);
-        await bg.BackgroundGeolocation.addGeofence(bg.Geofence(
-          identifier: zone.docId,
-          radius: 200,
-          latitude: zone.latitude,
-          longitude: zone.longitude,
-          notifyOnEntry: true,
-          notifyOnExit: false,
-          extras: {
-            'zoneName': zone.zoneName,
-            'zoneCategory': zone.zoneCategory,
-          },
-        ));
+        try {
+          await bg.BackgroundGeolocation.addGeofence(bg.Geofence(
+            identifier: zone.docId,
+            radius: 200,
+            latitude: zone.latitude,
+            longitude: zone.longitude,
+            notifyOnEntry: true,
+            notifyOnExit: false,
+            extras: {
+              'zoneName': zone.zoneName,
+              'zoneCategory': zone.zoneCategory,
+            },
+          ));
+        } catch (e) {
+          print('⚠️ 백그라운드 지오펜스 재등록 실패: $e');
+        }
       }
     }
   }

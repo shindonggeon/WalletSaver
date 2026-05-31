@@ -29,8 +29,12 @@ class _SearchZoneDialogState extends State<SearchZoneDialog> {
     });
 
     try {
-      final url = Uri.parse('https://nominatim.openstreetmap.org/search?q=$query&format=json&addressdetails=1&limit=5');
-      final response = await http.get(url, headers: {'User-Agent': 'WalletSaver/1.0'});
+      final encodedQuery = Uri.encodeComponent(query);
+      final url = Uri.parse('https://nominatim.openstreetmap.org/search?q=$encodedQuery&format=json&addressdetails=1&limit=5&accept-language=ko');
+      final response = await http.get(url, headers: {
+        'User-Agent': 'WalletSaver/1.0',
+        'Accept-Language': 'ko-KR,ko;q=0.9',
+      });
       
       if (response.statusCode == 200) {
         final List data = jsonDecode(response.body);
