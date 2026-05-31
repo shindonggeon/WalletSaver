@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
+import '../Part1Gps/monitoring.dart';
+import '../services/notification_service.dart';
+import '../services/ai_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DangerZoneScreen extends StatefulWidget {
   const DangerZoneScreen({super.key});
@@ -12,13 +17,75 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
   // ── Dummy Data ──────────────────────────────────────────
   bool isGpsEnabled = true;
   String selectedNagStrength = '적당히';
+  bool isTesting = false;
 
   final List<Map<String, dynamic>> dangerZones = [
-    {'name': '올리브영 강남본점', 'address': '서울 서초구 강남대로', 'isOn': true, 'emoji': '💄'},
-    {'name': '스타벅스 파미에스테이션', 'address': '서울 서초구 사평대로', 'isOn': true, 'emoji': '☕'},
-    {'name': '현대 프리미엄 아울렛', 'address': '경기 남양주시', 'isOn': false, 'emoji': '🛍️'},
+    {'name': '올리브영 강남본점', 'address': '서울 서초구 강남대로', 'isOn': true, 'emoji': '💄', 'category': 'shopping'},
+    {'name': '스타벅스 파미에스테이션', 'address': '서울 서초구 사평대로', 'isOn': true, 'emoji': '☕', 'category': 'cafe'},
+    {'name': '현대 프리미엄 아울렛', 'address': '경기 남양주시', 'isOn': false, 'emoji': '🛍️', 'category': 'shopping'},
   ];
   // ────────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    if (isGpsEnabled) {
+      _toggleGps(true);
+    }
+  }
+
+  void _toggleGps(bool val) {
+    setState(() => isGpsEnabled = val);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      if (val) {
+        Monitoring().startMonitoring(uid);
+      } else {
+        Monitoring().stopMonitoring(uid);
+      }
+    }
+  }
+
+  Future<void> _simulateGeofenceEvent(Map<String, dynamic> zone) async {
+    setState(() => isTesting = true);
+    
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) throw Exception('로그인이 필요합니다.');
+      
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final characterType = userDoc.data()?['characterType'] as String? ?? 'ant';
+      
+      final aiService = AiService();
+      
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('AI가 진입 상황을 분석 중입니다...')));
+      
+      final aiMessage = await aiService.generateLocationWarning(
+        placeName: zone['name'],
+        category: zone['category'],
+        remainingBudget: 3500, // 임시 잔액 
+        todayBudget: 5000,
+        budgetUsageRate: 0.9,
+        monthlyGoal: '이번 달 목표 달성',
+        characterType: characterType,
+        naggingIntensity: selectedNagStrength == '강하게' ? 'high' : 'medium',
+      );
+      
+      await NotificationService.showNotification(
+        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title: '🚨 위험 구역 [${zone['name']}] 감지!',
+        body: aiMessage,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('테스트 실패: $e')));
+    } finally {
+      if (context.mounted) {
+        setState(() => isTesting = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +197,7 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
                 scale: 0.85,
                 child: Switch(
                   value: isGpsEnabled,
-                  onChanged: (val) => setState(() => isGpsEnabled = val),
+                  onChanged: _toggleGps,
                   activeThumbColor: Colors.white,
                   activeTrackColor: Colors.white.withValues(alpha: 0.4),
                   inactiveThumbColor: Colors.white,
@@ -177,6 +244,12 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
                     color: isOn ? AppColors.textPrimary : AppColors.textHint,
                   )),
                   Text(zone['address'], style: AppTextStyles.captionNormal),
+                  const SizedBox(height: 6),
+                  if (isOn)
+                    GestureDetector(
+                      onTap: isTesting ? null : () => _simulateGeofenceEvent(zone),
+                      child: Text('알림 테스트 시연 >', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
                 ],
               ),
             ),

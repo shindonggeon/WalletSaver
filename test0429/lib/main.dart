@@ -16,6 +16,7 @@ import 'screens/ledger_screen.dart';
 import 'screens/ai_screen.dart';
 import 'screens/character_screen.dart';
 import 'screens/danger_zone_screen.dart';
+import 'services/notification_service.dart';
 
 
 void main() async {
@@ -23,6 +24,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await NotificationService.initialize();
 
   // 임시 익명 로그인 (나중에 온보딩에서 처리 가능)
   if (FirebaseAuth.instance.currentUser == null) {

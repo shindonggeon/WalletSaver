@@ -1,4 +1,7 @@
 import 'package:flutter_background_geolocation/flutter_background_geolocation.dart' as bg;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/ai_service.dart';
+import '../services/notification_service.dart';
 import 'zone.dart';
 import 'danger_zone.dart';
 
@@ -28,8 +31,34 @@ class Monitoring {
         Zone zoneController = Zone();
         final request = await zoneController.onZoneEntered(zone);
         
-        // 3. TODO: 여기서 최종 생성된 request 객체를 파트 4(AI) 서버로 쏘는 로직이 들어갑니다.
+        // 3. 파트 4(AI) 서버 또는 팰백 로직을 호출하여 잔소리 문구를 생성합니다.
         print('[Monitoring] AI 전달용 데이터 생성: ${request.toJson()}');
+        
+        try {
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(request.uid).get();
+          final characterType = userDoc.data()?['characterType'] as String? ?? 'ant';
+          
+          final aiService = AiService();
+          final aiMessage = await aiService.generateLocationWarning(
+            placeName: request.zoneName,
+            category: request.zoneCategory,
+            remainingBudget: request.remainingBudget,
+            todayBudget: request.todayBudget,
+            budgetUsageRate: request.budgetUsageRate,
+            monthlyGoal: '이번 달 목표 달성', // 임시 기본값
+            characterType: characterType,
+            naggingIntensity: 'high',
+          );
+          
+          // 4. 로컬 푸시 알림으로 잔소리 전송
+          await NotificationService.showNotification(
+            id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            title: '🚨 위험 구역 [${request.zoneName}] 접근!',
+            body: aiMessage,
+          );
+        } catch (e) {
+          print('알림 전송 실패: $e');
+        }
       }
     });
 
