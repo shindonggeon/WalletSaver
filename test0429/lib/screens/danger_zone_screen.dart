@@ -7,6 +7,10 @@ import '../services/ai_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../Part1Gps/zone.dart';
+import '../Part1Gps/danger_zone.dart';
+import '../constants/app_constants.dart';
+import 'search_zone_dialog.dart';
 
 class DangerZoneScreen extends StatefulWidget {
   const DangerZoneScreen({super.key});
@@ -21,11 +25,6 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
   String selectedNagStrength = '적당히';
   bool isTesting = false;
 
-  final List<Map<String, dynamic>> dangerZones = [
-    {'name': '올리브영 강남본점', 'address': '서울 서초구 강남대로', 'isOn': true, 'emoji': '💄', 'category': 'shopping', 'lat': 37.498095, 'lng': 127.027610},
-    {'name': '스타벅스 파미에스테이션', 'address': '서울 서초구 사평대로', 'isOn': true, 'emoji': '☕', 'category': 'cafe', 'lat': 37.504820, 'lng': 127.004944},
-    {'name': '현대 프리미엄 아울렛', 'address': '경기 남양주시', 'isOn': false, 'emoji': '🛍️', 'category': 'shopping', 'lat': 37.618640, 'lng': 127.155823},
-  ];
   // ────────────────────────────────────────────────────────
 
   @override
@@ -89,109 +88,177 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
     }
   }
 
+  Future<void> _openSearchDialog() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
+      return;
+    }
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => const SearchZoneDialog(),
+    );
+
+    if (result != null) {
+      final String docId = '${uid}_${DateTime.now().millisecondsSinceEpoch}';
+      final newZone = DangerZone(
+        docId: docId,
+        uid: uid,
+        zoneName: result['name'],
+        zoneCategory: result['category'],
+        latitude: result['lat'],
+        longitude: result['lng'],
+        isEnabled: true,
+      );
+
+      await Zone().addDangerZone(newZone);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${result['name']} 구역이 감시망에 추가되었습니다.')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final activeCount = dangerZones.where((z) => z['isOn'] == true).length;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            backgroundColor: AppColors.bgPage,
-            elevation: 0,
-            pinned: true,
-            floating: true,
-            title: Text('위험지역 감시망', style: AppTextStyles.pageTitle),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // 상태 헤더 카드
-                _buildStatusHeader(activeCount),
-                const SizedBox(height: 20),
+      body: uid == null 
+        ? const Center(child: Text('로그인이 필요합니다.'))
+        : StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection(CollectionKeys.dangerZones).where('uid', isEqualTo: uid).snapshots(),
+        builder: (context, snapshot) {
+          final List<DangerZone> zones = [];
+          if (snapshot.hasData) {
+            for (var doc in snapshot.data!.docs) {
+              zones.add(DangerZone.fromMap(doc.data() as Map<String, dynamic>));
+            }
+          }
+          final activeCount = zones.where((z) => z.isEnabled).length;
 
-                // 실제 지도 뷰
-                Container(
-                  height: 250,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))
-                    ]
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: FlutterMap(
-                    options: MapOptions(
-                      initialCenter: const LatLng(37.5015, 127.0163), // 강남과 파미에스테이션 사이
-                      initialZoom: 13.0,
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.example.test0429',
-                      ),
-                      MarkerLayer(
-                        markers: dangerZones.map((zone) {
-                          final bool isOn = zone['isOn'];
-                          return Marker(
-                            point: LatLng(zone['lat'], zone['lng']),
-                            width: 50,
-                            height: 50,
-                            child: AnimatedScale(
-                              scale: isOn ? 1.0 : 0.7,
-                              duration: const Duration(milliseconds: 300),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: isOn ? AppColors.stateDanger : AppColors.surfaceMuted,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: (isOn ? AppColors.stateDanger : AppColors.textHint).withValues(alpha: 0.3),
-                                      blurRadius: 8,
-                                      spreadRadius: 2,
-                                    )
-                                  ],
-                                  border: Border.all(color: Colors.white, width: 2),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(zone['emoji'] ?? '📍', style: const TextStyle(fontSize: 20)),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // 위험 지역 목록
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('등록된 위험 지역', style: AppTextStyles.sectionHeader),
-                    TextButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
-                      label: Text('추가', style: AppTextStyles.caption.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ...dangerZones.map((zone) => _buildZoneItem(zone)),
-                const SizedBox(height: 24),
-
-                // 잔소리 강도 선택
-                Text('AI 잔소리 강도', style: AppTextStyles.sectionHeader),
-                const SizedBox(height: 12),
-                _buildNagStrengthSelector(),
-              ]),
+          Widget mapWidget = FlutterMap(
+            options: MapOptions(
+              initialCenter: zones.isNotEmpty ? LatLng(zones.first.latitude, zones.first.longitude) : const LatLng(37.5015, 127.0163),
+              initialZoom: 13.0,
             ),
-          ),
-        ],
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.test0429',
+              ),
+              MarkerLayer(
+                markers: zones.map((zone) {
+                  return Marker(
+                    point: LatLng(zone.latitude, zone.longitude),
+                    width: 50,
+                    height: 50,
+                    child: AnimatedScale(
+                      scale: zone.isEnabled ? 1.0 : 0.7,
+                      duration: const Duration(milliseconds: 300),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: zone.isEnabled ? AppColors.stateDanger : AppColors.surfaceMuted,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (zone.isEnabled ? AppColors.stateDanger : AppColors.textHint).withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            )
+                          ],
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text('📍', style: TextStyle(fontSize: 20)),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          );
+
+          if (!isGpsEnabled) {
+            mapWidget = ColorFiltered(
+              colorFilter: const ColorFilter.matrix(<double>[
+                0.2126, 0.7152, 0.0722, 0, 0,
+                0.2126, 0.7152, 0.0722, 0, 0,
+                0.2126, 0.7152, 0.0722, 0, 0,
+                0,      0,      0,      1, 0,
+              ]),
+              child: mapWidget,
+            );
+          }
+
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                backgroundColor: AppColors.bgPage,
+                elevation: 0,
+                pinned: true,
+                floating: true,
+                title: Text('위험지역 감시망', style: AppTextStyles.pageTitle),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    // 상태 헤더 카드
+                    _buildStatusHeader(activeCount),
+                    const SizedBox(height: 20),
+
+                    // 실제 지도 뷰
+                    Opacity(
+                      opacity: isGpsEnabled ? 1.0 : 0.6,
+                      child: Container(
+                        height: 250,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))
+                          ]
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: mapWidget,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // 위험 지역 목록
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('등록된 위험 지역', style: AppTextStyles.sectionHeader),
+                        TextButton.icon(
+                          onPressed: _openSearchDialog,
+                          icon: const Icon(Icons.search, size: 16, color: AppColors.primary),
+                          label: Text('추가', style: AppTextStyles.caption.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (zones.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(child: Text('등록된 위험 지역이 없습니다.', style: TextStyle(color: AppColors.textHint))),
+                      )
+                    else
+                      ...zones.map((zone) => _buildZoneItem(zone)),
+                    const SizedBox(height: 24),
+
+                    // 잔소리 강도 선택
+                    Text('AI 잔소리 강도', style: AppTextStyles.sectionHeader),
+                    const SizedBox(height: 12),
+                    _buildNagStrengthSelector(),
+                  ]),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -249,55 +316,65 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
     );
   }
 
-  Widget _buildZoneItem(Map<String, dynamic> zone) {
-    final bool isOn = zone['isOn'] as bool;
+  Widget _buildZoneItem(DangerZone zone) {
+    final bool isOn = zone.isEnabled;
+    final isLocked = !isGpsEnabled;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isOn ? AppColors.stateDanger.withValues(alpha: 0.3) : AppColors.border),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 46, height: 46,
-              decoration: BoxDecoration(
-                color: isOn ? AppColors.stateDanger.withValues(alpha: 0.1) : AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(12),
+      child: Opacity(
+        opacity: isLocked ? 0.5 : 1.0,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isOn && !isLocked ? AppColors.stateDanger.withValues(alpha: 0.3) : AppColors.border),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46, height: 46,
+                decoration: BoxDecoration(
+                  color: isOn && !isLocked ? AppColors.stateDanger.withValues(alpha: 0.1) : AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: const Text('📍', style: TextStyle(fontSize: 22)),
               ),
-              alignment: Alignment.center,
-              child: Text(zone['emoji'] ?? '📍', style: const TextStyle(fontSize: 22)),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(zone['name'], style: AppTextStyles.bodyBold.copyWith(
-                    color: isOn ? AppColors.textPrimary : AppColors.textHint,
-                  )),
-                  Text(zone['address'], style: AppTextStyles.captionNormal),
-                  const SizedBox(height: 6),
-                  if (isOn)
-                    GestureDetector(
-                      onTap: isTesting ? null : () => _simulateGeofenceEvent(zone),
-                      child: Text('알림 테스트 시연 >', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ),
-                ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(zone.zoneName, style: AppTextStyles.bodyBold.copyWith(
+                      color: isOn && !isLocked ? AppColors.textPrimary : AppColors.textHint,
+                    )),
+                    Text(CategoryKeys.label(zone.zoneCategory), style: AppTextStyles.captionNormal),
+                    const SizedBox(height: 6),
+                    if (isOn && !isLocked)
+                      GestureDetector(
+                        onTap: isTesting ? null : () => _simulateGeofenceEvent({
+                          'name': zone.zoneName,
+                          'category': zone.zoneCategory,
+                        }),
+                        child: const Text('알림 테스트 시연 >', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            Switch(
-              value: isOn,
-              onChanged: (val) => setState(() => zone['isOn'] = val),
-              activeThumbColor: AppColors.stateDanger,
-              activeTrackColor: AppColors.stateDanger.withValues(alpha: 0.2),
-            ),
-          ],
+              Switch(
+                value: isOn,
+                onChanged: isLocked ? null : (val) async {
+                  await Zone().toggleZone(zone.docId, val);
+                },
+                activeThumbColor: isLocked ? Colors.grey : AppColors.stateDanger,
+                activeTrackColor: (isLocked ? Colors.grey : AppColors.stateDanger).withValues(alpha: 0.2),
+              ),
+            ],
+          ),
         ),
       ),
     );

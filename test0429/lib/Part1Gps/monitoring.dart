@@ -21,6 +21,7 @@ class Monitoring {
         // 하드웨어 이벤트 정보만으로는 부족하므로, 임시로 DangerZone 객체를 복원합니다.
         final zone = DangerZone(
           docId: event.identifier, // 설정했던 문서 ID
+          uid: uid,
           zoneName: extras['zoneName'] ?? '알 수 없는 위험 지역',
           zoneCategory: extras['zoneCategory'] ?? 'etc',
           latitude: 0.0,  // 진입 시점에는 좌표 자체보다 장소 정보가 중요하므로 임의값
