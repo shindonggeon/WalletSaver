@@ -58,7 +58,7 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
       
       final aiService = AiService();
       
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('AI가 진입 상황을 분석 중입니다...')));
       
       final aiMessage = await aiService.generateLocationWarning(
@@ -78,10 +78,10 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
         body: aiMessage,
       );
     } catch (e) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('테스트 실패: $e')));
     } finally {
-      if (context.mounted) {
+      if (mounted) {
         setState(() => isTesting = false);
       }
     }
