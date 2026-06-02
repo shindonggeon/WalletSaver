@@ -62,11 +62,12 @@ class CategoryKeys {
   static const String leisure           = 'leisure';           // 여가
   static const String selfSatisfaction  = 'self_satisfaction'; // 자기만족
   static const String convenience       = 'convenience';       // 편의점
-  static const String etc              = 'etc';
+  static const String income            = 'income';            // 수입
+  static const String etc               = 'etc';
 
   static const List<String> all = [
     food, cafe, shopping, transport, living,
-    leisure, selfSatisfaction, convenience, etc,
+    leisure, selfSatisfaction, convenience, income, etc,
   ];
 
   static String label(String key) {
@@ -79,9 +80,26 @@ class CategoryKeys {
       leisure:          '여가',
       selfSatisfaction: '자기만족',
       convenience:      '편의점',
+      income:           '수입',
       etc:              '기타',
     };
     return map[key] ?? '기타';
+  }
+
+  static String emoji(String key) {
+    const map = {
+      food:             '🍔',
+      cafe:             '☕️',
+      shopping:         '🛍️',
+      transport:        '🚌',
+      living:           '🛒',
+      leisure:          '🎮',
+      selfSatisfaction: '💅',
+      convenience:      '🏪',
+      income:           '💰',
+      etc:              '🔖',
+    };
+    return map[key] ?? '🔖';
   }
 }
 

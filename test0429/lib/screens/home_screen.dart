@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/character_card.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/challenge_card.dart';
+import '../widgets/expense_bottom_sheet.dart';
+import 'chatbot_screen.dart';
 import '../theme/app_theme.dart';
 import '../services/budget_service.dart';
+import '../services/user_service.dart';
 import '../models/budget.dart';
 import '../models/expense.dart';
 import '../constants/app_constants.dart';
@@ -16,11 +20,133 @@ import '../services/challenge_service.dart';
 String formatNumber(int n) =>
     n.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  static const String nickname = '소리님';
-  static const String naggingText = '"오늘 이미 커피 2잔이나 마셨어요! 또 카페 가시게요?"';
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _isInit = false;
+  String? _characterType;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInit) {
+      final user = context.watch<User?>();
+      if (user != null) {
+        _ensureBudgetExists(user.uid);
+        _isInit = true;
+      }
+    }
+  }
+
+  Future<void> _ensureBudgetExists(String uid) async {
+    try {
+      final now = DateTime.now();
+      final yearMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+      final budgetRef = FirebaseFirestore.instance
+          .collection(CollectionKeys.users)
+          .doc(uid)
+          .collection(CollectionKeys.budgets)
+          .doc(yearMonth);
+      
+      final doc = await budgetRef.get();
+      
+      final userDoc = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).get();
+      if (mounted) {
+        setState(() {
+          _characterType = userDoc.data()?['characterType'] as String?;
+        });
+      }
+
+      if (!doc.exists) {
+        final monthlyIncome = (userDoc.data()?['monthlyIncome'] as num?)?.toInt() ?? 0;
+        
+        int fixedExpenses = 0;
+        final fixedSnap = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).collection(CollectionKeys.fixedExpenses).get();
+        for (var fDoc in fixedSnap.docs) {
+          fixedExpenses += (fDoc.data()['amount'] as num).toInt();
+        }
+        
+        await BudgetService.recalculateAndSave(
+          uid: uid,
+          monthlyIncome: monthlyIncome,
+          fixedExpenses: fixedExpenses,
+        );
+      }
+    } catch (e) {
+      print('Error ensuring budget exists: $e');
+    }
+  }
+
+  void _runDemo(BuildContext context, String uid) async {
+    // 1. 시스템 감지 스낵바 (하단)
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🛰️ 시스템: 위험 지역(스타벅스 강남점) 진입을 감지했습니다. AI 분석 중...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    // 2. 푸시 알림 (상단 플로팅 스낵바)
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).size.height - 180, // 상단에 띄우기 위한 트릭
+          left: 16,
+          right: 16,
+        ),
+        backgroundColor: Colors.white,
+        elevation: 10,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: AppColors.stateDanger.withValues(alpha: 0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.location_on, color: AppColors.stateDanger),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StreamBuilder<Budget?>(
+                stream: BudgetService.budgetStream(uid),
+                builder: (context, snapshot) {
+                  final budget = snapshot.data;
+                  final todayBudget = budget?.todayBudget ?? 0;
+                  final remainingStr = formatNumber(todayBudget);
+                  
+                  String advice = '오늘 하루 쓸 수 있는 돈이 $remainingStr원입니다! 여기서 커피를 사면 오늘 하루 식비가 확 줄어들어요. 커피 대신 물을 마시는 건 어떨까요?';
+                  if (todayBudget < 10000) {
+                    advice = '오늘 쓸 수 있는 돈이 $remainingStr원밖에 남지 않았습니다! 이번 지출은 정말 필요한 것인지 다시 한 번 고민해 보세요.';
+                  }
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('[소리 AI] 🚨 경고: 스타벅스 강남점', style: AppTextStyles.bodyBold.copyWith(color: AppColors.stateDanger)),
+                      const SizedBox(height: 4),
+                      Text(advice, style: AppTextStyles.captionNormal.copyWith(color: AppColors.textPrimary)),
+                    ],
+                  );
+                }
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,39 +171,57 @@ class HomeScreen extends StatelessWidget {
               final expenses = expenseSnap.data ?? [];
               final recentTransactions = expenses.take(3).toList();
 
-              return CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverAppBar(
-                    backgroundColor: AppColors.bgPage,
-                    elevation: 0,
-                    scrolledUnderElevation: 0,
-                    pinned: false,
-                    floating: true,
-                    expandedHeight: 70,
-                    flexibleSpace: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+              String naggingText = '';
+              bool hasRecentLargeExpense = false;
+              if (recentTransactions.isNotEmpty) {
+                final latest = recentTransactions.first;
+                if (latest.amount >= 300000 && DateTime.now().difference(latest.spentAt.toDate()).inHours < 12) {
+                  hasRecentLargeExpense = true;
+                }
+              }
+
+              if (budgetUsageRate >= 1.0) {
+                naggingText = '"예산이 초과되었습니다! 이제 지갑을 닫을 시간이에요."';
+              } else if (hasRecentLargeExpense) {
+                naggingText = '"방금 큰 지출이 있었네요! 💸 남은 예산을 고려해 당분간 꽉 조여 매야 합니다."';
+              } else if (budgetUsageRate >= 0.8) {
+                naggingText = '"예산이 20%밖에 안 남았어요! 당분간은 무지출 챌린지 어때요?"';
+              } else if (budgetUsageRate >= 0.5) {
+                naggingText = '"예산을 절반 이상 사용했어요! 조금만 더 아껴볼까요?"';
+              } else {
+                naggingText = '"아주 잘하고 있어요! 지금처럼만 계획적으로 사용합시다."';
+              }
+
+              return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: UserService.userStream(uid),
+                builder: (context, userDocSnap) {
+                  final nickname = userDocSnap.data?.data()?['nickname'] as String? ?? '소리';
+
+                  return CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 60, 20, 0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(_todayLabel(), style: AppTextStyles.captionNormal),
-                              Text('안녕하세요, $nickname 👋', style: AppTextStyles.greetingTitle),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_todayLabel(), style: AppTextStyles.captionNormal),
+                                  Text('안녕하세요, $nickname님 👋', style: AppTextStyles.greetingTitle),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  _IconBtn(icon: Icons.auto_fix_high, onTap: () => _runDemo(context, uid)), // 라이브 시연용 데모 버튼
+                                ],
+                              ),
                             ],
                           ),
-                          Row(
-                            children: [
-                              _IconBtn(icon: Icons.notifications_none_rounded, onTap: () {}),
-                              const SizedBox(width: 8),
-                              _IconBtn(icon: Icons.settings_outlined, onTap: () {}),
-                            ],
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
 
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -86,7 +230,10 @@ class HomeScreen extends StatelessWidget {
                         _NaggingBanner(text: naggingText, themeColor: theme.primary),
                         const SizedBox(height: 16),
 
-                        CharacterCard(budgetUsageRate: budgetUsageRate),
+                        CharacterCard(
+                          budgetUsageRate: budgetUsageRate,
+                          characterType: _characterType,
+                        ),
                         const SizedBox(height: 16),
 
                         BudgetCard(
@@ -143,7 +290,7 @@ class HomeScreen extends StatelessWidget {
 
                         GestureDetector(
                           onTap: () {
-                            // TODO: Add Expense Flow (LedgerScreen 참고)
+                            showAddExpenseBottomSheet(context, uid);
                           },
                           child: _AddExpenseButton(primary: theme.primary),
                         ),
@@ -155,6 +302,18 @@ class HomeScreen extends StatelessWidget {
             }
           );
         }
+      );
+    }
+  ),
+  floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ChatbotScreen()),
+          );
+        },
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.chat_bubble_rounded, color: Colors.white),
       ),
     );
   }
@@ -241,7 +400,7 @@ class _TransactionItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             alignment: Alignment.center,
-            child: Text(catLabel.substring(0,1), style: TextStyle(fontSize: 22, color: catColor)),
+            child: Text(CategoryKeys.emoji(tx.category), style: const TextStyle(fontSize: 22)),
           ),
           const SizedBox(width: 14),
           Expanded(

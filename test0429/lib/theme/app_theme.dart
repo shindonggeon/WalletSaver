@@ -10,6 +10,18 @@ class AppColors {
   static const Color primaryLight = Color(0xFFA78BFA);
   static const Color primaryDark = Color(0xFF5B46D6);
 
+  // ── 파스텔 그라디언트 테마 컬러 (앱 전체 배경)
+  static const Color pastel1 = Color(0xFFA388F7);
+  static const Color pastel2 = Color(0xFFB8A7F5);
+  static const Color pastel3 = Color(0xFFBCA5F9);
+  static const Color pastel4 = Color(0xFFD8CEFA);
+
+  static const LinearGradient globalBackgroundGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [pastel4, pastel3, pastel2, pastel1],
+  );
+
   // ── 배경 그라디언트 (Hero 카드)
   static const Color gradFrom = Color(0xFF1E1B4B);
   static const Color gradTo = Color(0xFF312E81);
@@ -44,15 +56,16 @@ class AppColors {
 
   // ── 카테고리 컬러
   static const Map<String, Color> categoryColors = {
-    '식비': Color(0xFFF59E0B),
-    '카페': Color(0xFF92400E),
-    '쇼핑': Color(0xFF7C63F5),
-    '교통': Color(0xFF3B82F6),
-    '생활': Color(0xFF10B981),
-    '뷰티': Color(0xFFEC4899),
-    '구독': Color(0xFF6366F1),
-    '기타': Color(0xFF9CA3AF),
-    '수입': Color(0xFF22C55E),
+    'food': Color(0xFFF59E0B),
+    'cafe': Color(0xFF92400E),
+    'shopping': Color(0xFF7C63F5),
+    'transport': Color(0xFF3B82F6),
+    'living': Color(0xFF10B981),
+    'leisure': Color(0xFFEC4899),
+    'self_satisfaction': Color(0xFF6366F1),
+    'convenience': Color(0xFF16A34A),
+    'income': Color(0xFF22C55E),
+    'etc': Color(0xFF9CA3AF),
   };
 }
 

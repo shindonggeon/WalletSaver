@@ -1,19 +1,28 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../constants/app_constants.dart';
 
 /// 캐릭터 카드 — 예산 상태별 애니메이션 + Progress Bar
 class CharacterCard extends StatelessWidget {
   final double budgetUsageRate;
+  final String? characterType;
 
   const CharacterCard({
     super.key,
     required this.budgetUsageRate,
+    this.characterType,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = AppTheme.getBudgetTheme(budgetUsageRate);
     final remainPct = ((1.0 - budgetUsageRate) * 100).clamp(0.0, 100.0);
+    
+    // DB 데이터가 없으면 기본값(개미) 사용
+    final String cType = characterType ?? 'ant_shopping';
+    final charData = CharacterTypes.characterData[cType] ?? CharacterTypes.characterData['ant_shopping']!;
+    final String charEmoji = charData['emoji']!;
+    final String charName = charData['name']!;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 700),
@@ -37,7 +46,7 @@ class CharacterCard extends StatelessWidget {
       child: Row(
         children: [
           // 캐릭터 아바타
-          _CharacterAvatar(emoji: theme.emoji, primaryColor: theme.primary),
+          _CharacterAvatar(emoji: charEmoji, primaryColor: theme.primary),
           const SizedBox(width: 16),
           // 상태 텍스트 + Progress Bar
           Expanded(
@@ -51,7 +60,7 @@ class CharacterCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '🐿️ 충동적 다람쥐',
+                    '$charEmoji $charName',
                     style: AppTextStyles.micro.copyWith(
                       color: theme.primary,
                       fontWeight: FontWeight.w700,
@@ -72,11 +81,11 @@ class CharacterCard extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: remainPct / 100),
+                    tween: Tween(begin: 0, end: (remainPct / 100).clamp(0.0, 1.0)),
                     duration: const Duration(milliseconds: 800),
                     curve: Curves.easeOut,
                     builder: (context, value, child) => LinearProgressIndicator(
-                      value: value,
+                      value: value.clamp(0.0, 1.0),
                       minHeight: 8,
                       backgroundColor: AppColors.border,
                       valueColor: AlwaysStoppedAnimation<Color>(theme.primary),

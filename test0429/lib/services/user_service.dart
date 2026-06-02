@@ -11,6 +11,10 @@ class UserService {
   static CollectionReference<Map<String, dynamic>> _fixedExpensesRef(String uid) =>
       _userRef(uid).collection(CollectionKeys.fixedExpenses);
 
+  static Stream<DocumentSnapshot<Map<String, dynamic>>> userStream(String uid) {
+    return _userRef(uid).snapshots();
+  }
+
   // ─── 재무 설정 저장 ────────────────────────────────────────────────────────
 
   /// 재무설정 화면에서 호출: 월 수입 + 고정지출 목록을 Firestore에 저장

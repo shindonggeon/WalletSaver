@@ -8,26 +8,34 @@ import '../theme/app_theme.dart';
 import '../constants/app_constants.dart';
 import '../services/challenge_service.dart';
 import '../models/challenge.dart';
+import '../models/expense.dart';
+import '../models/budget.dart';
+import '../services/budget_service.dart';
 
-class CharacterScreen extends StatelessWidget {
+class CharacterScreen extends StatefulWidget {
   const CharacterScreen({super.key});
 
-  // ── Dummy Data ──────────────────────────────────────────
-  static const int recordDays = 45;
-  static const int monthlyExpense = 340000;
-  static const int goalAchievedCount = 3;
-  static const int savingDays = 12;
+  @override
+  State<CharacterScreen> createState() => _CharacterScreenState();
+}
 
-  static const List<Map<String, dynamic>> categoryData = [
-    {'name': '식비', 'ratio': 40.0, 'color': Color(0xFFF59E0B)},
-    {'name': '카페', 'ratio': 20.0, 'color': Color(0xFF92400E)},
-    {'name': '교통', 'ratio': 15.0, 'color': Color(0xFF3B82F6)},
-    {'name': '기타', 'ratio': 25.0, 'color': Color(0xFF9CA3AF)},
-  ];
+class _CharacterScreenState extends State<CharacterScreen> {
+  Future<List<double>>? _pastMonthsFuture;
+  late String _uid;
+  bool _isInit = false;
 
-  static const List<double> monthlyBars = [45.0, 52.0, 38.0, 34.0];
-  static const List<String> monthLabels = ['1월', '2월', '3월', '4월'];
-  // ────────────────────────────────────────────────────────
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInit) {
+      final user = context.watch<User?>();
+      if (user != null) {
+        _uid = user.uid;
+        _pastMonthsFuture = BudgetService.getPast4MonthsExpenses(_uid);
+        _isInit = true;
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,21 +63,21 @@ class CharacterScreen extends StatelessWidget {
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              SliverAppBar(
-                backgroundColor: AppColors.bgPage,
-                pinned: true,
-                floating: true,
-                title: Text('내 캐릭터', style: AppTextStyles.pageTitle),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 60.0, left: 20, right: 20, bottom: 20),
+                  child: Text('내 캐릭터', style: AppTextStyles.pageTitle),
+                ),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    _buildProfileCard(charEmoji, charName, charLevel, charXp),
+                    _buildProfileCard(charEmoji, charName, charLevel, charXp, userData),
                     const SizedBox(height: 16),
                     _buildBadgeCollection(charLevel),
                     const SizedBox(height: 16),
-                    _buildStatsRow(),
+                    _buildStatsRow(uid),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
@@ -96,7 +104,7 @@ class CharacterScreen extends StatelessWidget {
                     const SizedBox(height: 24),
                     Text('지출 리포트', style: AppTextStyles.sectionHeader),
                     const SizedBox(height: 12),
-                    _buildChartsCard(),
+                    _buildChartsCard(uid),
                   ]),
                 ),
               ),
@@ -107,7 +115,7 @@ class CharacterScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileCard(String emoji, String name, int level, int xp) {
+  Widget _buildProfileCard(String emoji, String name, int level, int xp, Map<String, dynamic> userData) {
     final requiredXp = level * 20 + 10;
     final progress = (xp / requiredXp).clamp(0.0, 1.0);
     
@@ -164,7 +172,7 @@ class CharacterScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text('함께 기록한 지 $recordDays일째!',
+                    Text('함께 기록한 지 ${userData['createdAt'] != null ? DateTime.now().difference((userData['createdAt'] as Timestamp).toDate()).inDays + 1 : 45}일째!',
                         style: AppTextStyles.captionNormal.copyWith(color: Colors.white70)),
                   ],
                 ),
@@ -257,15 +265,52 @@ class CharacterScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsRow() {
-    return Row(
-      children: [
-        _StatBox(label: '이번달 지출', value: '${(monthlyExpense / 10000).toStringAsFixed(0)}만원', icon: Icons.account_balance_wallet, color: AppColors.primary),
-        const SizedBox(width: 12),
-        _StatBox(label: '목표 달성', value: '$goalAchievedCount회', icon: Icons.flag_rounded, color: AppColors.stateCaution),
-        const SizedBox(width: 12),
-        _StatBox(label: '절약 일수', value: '$savingDays일', icon: Icons.savings, color: AppColors.stateSafe),
-      ],
+  String _formatExpense(int amount) {
+    if (amount == 0) return '0원';
+    if (amount >= 10000) {
+      return '${(amount / 10000).toStringAsFixed(0)}만원';
+    } else {
+      return '${amount}원';
+    }
+  }
+
+  Widget _buildStatsRow(String uid) {
+    return StreamBuilder<Budget?>(
+      stream: BudgetService.budgetStream(uid),
+      builder: (context, budgetSnap) {
+        final totalSpent = budgetSnap.data?.totalSpent ?? 0;
+        
+        return StreamBuilder<List<Challenge>>(
+          stream: ChallengeService.allChallengesStream(uid),
+          builder: (context, challengeSnap) {
+            final challenges = challengeSnap.data ?? [];
+            final goalAchievedCount = challenges.where((c) => !c.isActive).length;
+            
+            return StreamBuilder<List<Expense>>(
+              stream: BudgetService.expenseStream(uid),
+              builder: (context, expenseSnap) {
+                final expenses = expenseSnap.data ?? [];
+                
+                // 절약일수 계산 (무지출 일수): 이번달 경과 일수 - 지출 발생 일수
+                final now = DateTime.now();
+                final daysPassed = now.day;
+                final spentDays = expenses.map((e) => e.spentAt.toDate().day).toSet().length;
+                final savingDays = daysPassed - spentDays;
+                
+                return Row(
+                  children: [
+                    _StatBox(label: '이번달 지출', value: _formatExpense(totalSpent), icon: Icons.account_balance_wallet, color: AppColors.primary),
+                    const SizedBox(width: 12),
+                    _StatBox(label: '목표 달성', value: '$goalAchievedCount회', icon: Icons.flag_rounded, color: AppColors.stateCaution),
+                    const SizedBox(width: 12),
+                    _StatBox(label: '절약 일수', value: '$savingDays일', icon: Icons.savings, color: AppColors.stateSafe),
+                  ],
+                );
+              }
+            );
+          }
+        );
+      }
     );
   }
 
@@ -453,81 +498,138 @@ class CharacterScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildChartsCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('카테고리 비율', style: AppTextStyles.sectionHeader),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 160,
-            child: PieChart(PieChartData(
-              sectionsSpace: 2,
-              centerSpaceRadius: 40,
-              sections: categoryData.map((e) => PieChartSectionData(
-                color: e['color'],
-                value: e['ratio'] as double,
-                title: '${e['ratio'].toInt()}%',
-                titleStyle: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                radius: 34,
-              )).toList(),
-            )),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: categoryData.map((e) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(children: [
-                Container(width: 8, height: 8, decoration: BoxDecoration(color: e['color'], shape: BoxShape.circle)),
-                const SizedBox(width: 4),
-                Text(e['name'], style: AppTextStyles.captionNormal),
-              ]),
-            )).toList(),
-          ),
-          const Divider(height: 32),
-          Text('최근 4개월 지출 추이', style: AppTextStyles.sectionHeader),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 140,
-            child: BarChart(BarChartData(
-              alignment: BarChartAlignment.spaceAround,
-              maxY: 60,
-              barTouchData: BarTouchData(enabled: false),
-              titlesData: FlTitlesData(
-                show: true,
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    getTitlesWidget: (v, _) => Text(monthLabels[v.toInt()], style: AppTextStyles.captionNormal),
-                  ),
-                ),
-                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+  Widget _buildChartsCard(String uid) {
+    return StreamBuilder<List<Expense>>(
+      stream: BudgetService.expenseStream(uid),
+      builder: (context, expenseSnap) {
+        final expenses = expenseSnap.data ?? [];
+        
+        // 카테고리 비율 계산
+        int totalExpenses = 0;
+        Map<String, int> categorySums = {};
+        for (var e in expenses) {
+          totalExpenses += e.amount;
+          categorySums[e.category] = (categorySums[e.category] ?? 0) + e.amount;
+        }
+        
+        List<Map<String, dynamic>> categoryData = [];
+        if (totalExpenses > 0) {
+          categorySums.forEach((key, sum) {
+            if (sum > 0) {
+              categoryData.add({
+                'name': CategoryKeys.label(key),
+                'ratio': (sum / totalExpenses) * 100,
+                'color': AppColors.categoryColors[key] ?? AppColors.textHint,
+              });
+            }
+          });
+          categoryData.sort((a, b) => (b['ratio'] as double).compareTo(a['ratio'] as double));
+        } else {
+          categoryData = [
+             {'name': '지출 없음', 'ratio': 100.0, 'color': AppColors.surfaceMuted},
+          ];
+        }
+
+        return FutureBuilder<List<double>>(
+          future: _pastMonthsFuture,
+          builder: (context, pastSnap) {
+            final pastExpenses = pastSnap.data ?? [0.0, 0.0, 0.0, 0.0];
+            
+            // 월 라벨 계산
+            final now = DateTime.now();
+            List<String> monthLabels = [];
+            for (int i = 3; i >= 0; i--) {
+              final date = DateTime(now.year, now.month - i, 1);
+              monthLabels.add('${date.month}월');
+            }
+
+            // 차트 최대 Y값 계산 (여유있게 설정, 최소 10만 원)
+            double maxY = 100000.0; 
+            for (var val in pastExpenses) {
+              if (val > maxY) maxY = val * 1.2;
+            }
+            if (maxY == 0) maxY = 10.0;
+
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
               ),
-              gridData: FlGridData(show: false),
-              borderData: FlBorderData(show: false),
-              barGroups: List.generate(4, (i) => BarChartGroupData(
-                x: i,
-                barRods: [BarChartRodData(
-                  toY: monthlyBars[i],
-                  color: i == 3 ? AppColors.primary : AppColors.tagBg,
-                  width: 18,
-                  borderRadius: BorderRadius.circular(6),
-                )],
-              )),
-            )),
-          ),
-        ],
-      ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('카테고리 비율', style: AppTextStyles.sectionHeader),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 160,
+                    child: PieChart(PieChartData(
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 40,
+                      sections: categoryData.map((e) => PieChartSectionData(
+                        color: e['color'],
+                        value: e['ratio'] as double,
+                        title: '${(e['ratio'] as double).toInt()}%',
+                        titleStyle: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                        radius: 34,
+                      )).toList(),
+                    )),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: categoryData.map((e) => Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(width: 8, height: 8, decoration: BoxDecoration(color: e['color'], shape: BoxShape.circle)),
+                        const SizedBox(width: 4),
+                        Text(e['name'], style: AppTextStyles.captionNormal),
+                      ]
+                    )).toList(),
+                  ),
+                  const Divider(height: 32),
+                  Text('최근 4개월 지출 추이', style: AppTextStyles.sectionHeader),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 140,
+                    child: BarChart(BarChartData(
+                      alignment: BarChartAlignment.spaceAround,
+                      maxY: maxY,
+                      barTouchData: BarTouchData(enabled: false),
+                      titlesData: FlTitlesData(
+                        show: true,
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            getTitlesWidget: (v, _) => Text(monthLabels[v.toInt()], style: AppTextStyles.captionNormal),
+                          ),
+                        ),
+                        leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      ),
+                      gridData: FlGridData(show: false),
+                      borderData: FlBorderData(show: false),
+                      barGroups: List.generate(4, (i) => BarChartGroupData(
+                        x: i,
+                        barRods: [BarChartRodData(
+                          toY: pastExpenses[i],
+                          color: i == 3 ? AppColors.primary : AppColors.tagBg,
+                          width: 18,
+                          borderRadius: BorderRadius.circular(6),
+                        )],
+                      )),
+                    )),
+                  ),
+                ],
+              ),
+            );
+          }
+        );
+      }
     );
   }
 }

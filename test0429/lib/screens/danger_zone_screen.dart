@@ -192,12 +192,11 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
       body: CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              SliverAppBar(
-                backgroundColor: AppColors.bgPage,
-                elevation: 0,
-                pinned: true,
-                floating: true,
-                title: Text('위험지역 감시망', style: AppTextStyles.pageTitle),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 60.0, left: 20, right: 20, bottom: 20),
+                  child: Text('위험지역 감시망', style: AppTextStyles.pageTitle),
+                ),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
@@ -250,6 +249,12 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
                     Text('AI 잔소리 강도', style: AppTextStyles.sectionHeader),
                     const SizedBox(height: 12),
                     _buildNagStrengthSelector(),
+                    const SizedBox(height: 32),
+
+                    // 위험 지역 진입 내역 (히스토리)
+                    Text('위험 지역 진입 내역', style: AppTextStyles.sectionHeader),
+                    const SizedBox(height: 16),
+                    _buildHistoryList(),
                   ]),
                 ),
               ),
@@ -423,6 +428,86 @@ class _DangerZoneScreenState extends State<DangerZoneScreen> {
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildHistoryList() {
+    final List<Map<String, dynamic>> nags = [
+      {'date': '오늘 13:42', 'location': '스타벅스 강남점 (카페)', 'msg': '"이미 오늘 커피 2잔이나 드셨어요! 또 가시게요? 통장이 울고 있습니다 😭"'},
+      {'date': '어제 19:15', 'location': '올리브영 강남타운점 (쇼핑)', 'msg': '"세일한다고 다 사면 안 돼요! 이번 달 쇼핑 예산 15%밖에 안 남았습니다."'},
+      {'date': '5월 12일 22:30', 'location': 'BBQ치킨 (야식)', 'msg': '"밤 10시가 넘었어요. 치킨 대신 물 한 잔 어때요? 건강과 지갑을 동시에 지킵시다!"'},
+    ];
+
+    return Column(
+      children: nags.map((item) => _buildHistoryItem(item)).toList(),
+    );
+  }
+
+  Widget _buildHistoryItem(Map<String, dynamic> item) {
+    // ⚠️ DB 연동 전 하드코딩
+    const String charEmoji = '🐿️';
+    const String charName = '충동적 다람쥐';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
+            ),
+            alignment: Alignment.center,
+            child: const Text(charEmoji, style: TextStyle(fontSize: 20)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(charName, style: AppTextStyles.captionNormal.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 6),
+                    Text(item['date'], style: AppTextStyles.micro.copyWith(color: AppColors.textHint)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                    border: Border.all(color: AppColors.stateDanger.withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on, color: AppColors.stateDanger, size: 14),
+                          const SizedBox(width: 4),
+                          Text(item['location'], style: AppTextStyles.captionNormal.copyWith(color: AppColors.stateDanger, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(item['msg'], style: AppTextStyles.body.copyWith(height: 1.4)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

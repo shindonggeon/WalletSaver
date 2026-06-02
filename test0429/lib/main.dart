@@ -10,10 +10,10 @@ import 'screens/onboarding/test_screen.dart';
 import 'screens/onboarding/result_screen.dart';
 import 'screens/onboarding/finance_setup_screen.dart';
 import 'screens/onboarding/challenge_setup_screen.dart';
+import 'screens/onboarding/nickname_setup_screen.dart';
 import 'screens/manage_finance_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ledger_screen.dart';
-import 'screens/ai_screen.dart';
 import 'screens/character_screen.dart';
 import 'screens/danger_zone_screen.dart';
 import 'services/notification_service.dart';
@@ -48,8 +48,12 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final GoRouter _router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/onboarding/test',
+  initialLocation: '/onboarding/nickname',
   routes: [
+    GoRoute(
+      path: '/onboarding/nickname',
+      builder: (context, state) => const NicknameSetupScreen(),
+    ),
     GoRoute(
       path: '/onboarding/test',
       builder: (context, state) => const TestScreen(),
@@ -102,14 +106,7 @@ final GoRouter _router = GoRouter(
             ),
           ],
         ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/ai',
-              builder: (context, state) => const AiScreen(),
-            ),
-          ],
-        ),
+
         StatefulShellBranch(
           routes: [
             GoRoute(
@@ -160,12 +157,39 @@ class MainScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: navigationShell,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Row(
+          children: [
+            const Icon(Icons.account_balance_wallet_rounded, color: AppColors.primaryDark),
+            const SizedBox(width: 8),
+            Text('소 리', style: AppTextStyles.pageTitle.copyWith(color: AppColors.primaryDark)),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: AppColors.textPrimary),
+            onPressed: () {
+              // 설정 페이지 이동 로직 추가 가능
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SafeArea(
+        child: navigationShell,
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
+          color: Colors.white,
           border: Border(top: BorderSide(color: Colors.grey[200]!)),
         ),
         child: BottomNavigationBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           currentIndex: navigationShell.currentIndex,
           onTap: (index) => _onTap(context, index),
           type: BottomNavigationBarType.fixed,
@@ -176,7 +200,6 @@ class MainScaffold extends StatelessWidget {
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: '홈'),
             BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long), label: '가계부'),
-            BottomNavigationBarItem(icon: Icon(Icons.psychology_outlined), activeIcon: Icon(Icons.psychology), label: 'AI'),
             BottomNavigationBarItem(icon: Icon(Icons.pets_outlined), activeIcon: Icon(Icons.pets), label: '캐릭터'),
             BottomNavigationBarItem(icon: Icon(Icons.warning_amber_rounded), activeIcon: Icon(Icons.warning_rounded), label: '위험지역'),
           ],
@@ -185,3 +208,4 @@ class MainScaffold extends StatelessWidget {
     );
   }
 }
+

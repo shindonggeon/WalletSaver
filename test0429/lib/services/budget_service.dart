@@ -93,12 +93,15 @@ class BudgetService {
 
     for (var doc in snapshot.docs) {
       final amount = (doc.data()['amount'] as num).toInt();
+      final category = doc.data()['category'] as String?;
       final spentAt = (doc.data()['spentAt'] as Timestamp).toDate();
       
+      final actualAmount = category == CategoryKeys.income ? -amount : amount;
+
       if (spentAt.isBefore(todayStart)) {
-        totalSpentBeforeToday += amount;
+        totalSpentBeforeToday += actualAmount;
       } else {
-        spentToday += amount;
+        spentToday += actualAmount;
       }
     }
 
@@ -180,5 +183,25 @@ class BudgetService {
     if (selfSatisfactionKeywords.any(merchant.contains)) return CategoryKeys.selfSatisfaction;
     if (foodKeywords.any(merchant.contains)) return CategoryKeys.food;
     return CategoryKeys.etc;
+  }
+
+  // ─── 차트용 통계 ─────────────────────────────────────────────────────────────
+
+  /// 과거 4개월 치 지출 합계를 리스트로 반환 [4달전, 3달전, 2달전, 이번달]
+  static Future<List<double>> getPast4MonthsExpenses(String uid) async {
+    final now = DateTime.now();
+    List<double> expenses = [];
+    for (int i = 3; i >= 0; i--) {
+      // Dart의 DateTime은 month가 0 이하면 알아서 이전 연도로 계산해줌
+      final date = DateTime(now.year, now.month - i, 1);
+      final yearMonth = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+      final doc = await _budgetRef(uid, yearMonth).get();
+      if (doc.exists) {
+        expenses.add((doc.data()?[BudgetKeys.totalSpent] as num?)?.toDouble() ?? 0.0);
+      } else {
+        expenses.add(0.0);
+      }
+    }
+    return expenses;
   }
 }

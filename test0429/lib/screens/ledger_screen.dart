@@ -7,6 +7,7 @@ import '../models/expense.dart';
 import '../models/budget.dart';
 import '../services/budget_service.dart';
 import '../constants/app_constants.dart';
+import '../widgets/expense_bottom_sheet.dart';
 
 class LedgerScreen extends StatefulWidget {
   const LedgerScreen({super.key});
@@ -21,107 +22,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
   
   String selectedCategory = '전체';
   int selectedTab = 0; // 0=전체, 1=지출, 2=수입
-  
-  // 지출 추가 폼 컨트롤러
-  final _merchantController = TextEditingController();
-  final _amountController = TextEditingController();
 
   @override
   void dispose() {
-    _merchantController.dispose();
-    _amountController.dispose();
     super.dispose();
-  }
-
-  void _showAddExpenseBottomSheet(BuildContext context, String uid) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.bgPage,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 20, right: 20, top: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('지출 추가', style: AppTextStyles.pageTitle),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _merchantController,
-                decoration: InputDecoration(
-                  labelText: '가맹점명 (예: 스타벅스)',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: '금액 (원)',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  onPressed: () async {
-                    final merchant = _merchantController.text.trim();
-                    final amount = int.tryParse(_amountController.text.trim()) ?? 0;
-                    if (merchant.isEmpty || amount <= 0) return;
-
-                    final expense = Expense(
-                      id: '',
-                      amount: amount,
-                      category: BudgetService.classifyCategory(merchant),
-                      merchant: merchant,
-                      isAuto: false,
-                      spentAt: Timestamp.now(),
-                    );
-
-                    // 실제 수입/고정지출 값 조회
-                    int income = 2500000;
-                    int fixedExp = 500000;
-                    try {
-                      final userDoc = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).get();
-                      income = userDoc.data()?['monthlyIncome'] as int? ?? 0;
-                      final fixedSnap = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).collection(CollectionKeys.fixedExpenses).get();
-                      fixedExp = fixedSnap.docs.fold<int>(0, (acc, doc) => acc + (doc.data()['amount'] as num).toInt());
-                    } catch (_) {}
-
-                    await BudgetService.addExpense(
-                      uid: uid,
-                      expense: expense,
-                      monthlyIncome: income,
-                      fixedExpenses: fixedExp,
-                    );
-
-                    _merchantController.clear();
-                    _amountController.clear();
-                    if (context.mounted) Navigator.pop(context);
-                  },
-                  child: Text('추가하기', style: AppTextStyles.button),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   @override
@@ -144,6 +48,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
             builder: (context, expenseSnap) {
               var expenses = expenseSnap.data ?? [];
               
+              if (selectedTab == 1) {
+                expenses = expenses.where((e) => e.category != CategoryKeys.income).toList();
+              } else if (selectedTab == 2) {
+                expenses = expenses.where((e) => e.category == CategoryKeys.income).toList();
+              }
+
               // 필터링 적용
               if (selectedCategory != '전체') {
                 expenses = expenses.where((e) => CategoryKeys.label(e.category) == selectedCategory).toList();
@@ -152,26 +62,23 @@ class _LedgerScreenState extends State<LedgerScreen> {
               return CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
-                  SliverAppBar(
-                    backgroundColor: AppColors.bgPage,
-                    elevation: 0,
-                    scrolledUnderElevation: 0,
-                    floating: true,
-                    pinned: true,
-                    expandedHeight: 60,
-                    title: Row(
-                      children: [
-                        Text('가계부', style: AppTextStyles.pageTitle),
-                        const SizedBox(width: 8),
-                        DropdownButton<String>(
-                          value: selectedMonth,
-                          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textHint, size: 20),
-                          underline: const SizedBox(),
-                          style: AppTextStyles.bodyBold.copyWith(color: AppColors.primary),
-                          items: ['3월', '4월', '5월'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                          onChanged: (val) => setState(() => selectedMonth = val!),
-                        ),
-                      ],
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 60, 20, 0),
+                      child: Row(
+                        children: [
+                          Text('가계부', style: AppTextStyles.pageTitle),
+                          const SizedBox(width: 8),
+                          DropdownButton<String>(
+                            value: selectedMonth,
+                            icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textHint, size: 20),
+                            underline: const SizedBox(),
+                            style: AppTextStyles.bodyBold.copyWith(color: AppColors.primary),
+                            items: ['3월', '4월', '5월'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                            onChanged: (val) => setState(() => selectedMonth = val!),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -205,9 +112,9 @@ class _LedgerScreenState extends State<LedgerScreen> {
         }
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddExpenseBottomSheet(context, uid),
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: Colors.white),
+        onPressed: () => showAddExpenseBottomSheet(context, uid),
       ),
     );
   }
@@ -363,7 +270,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
-                child: Text(catLabel.substring(0,1), style: TextStyle(fontSize: 22, color: catColor)),
+                child: Text(CategoryKeys.emoji(item.category), style: const TextStyle(fontSize: 22)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -376,9 +283,9 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 ),
               ),
               Text(
-                '-${formatNumber(item.amount)}원',
+                item.category == CategoryKeys.income ? '+${formatNumber(item.amount)}원' : '-${formatNumber(item.amount)}원',
                 style: AppTextStyles.bodyBold.copyWith(
-                  color: AppColors.expense,
+                  color: item.category == CategoryKeys.income ? AppColors.income : AppColors.expense,
                 ),
               ),
             ],

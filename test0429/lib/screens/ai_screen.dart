@@ -23,6 +23,8 @@ class _AiScreenState extends State<AiScreen> {
   String _reportDate = '';
   String _topCategoryInsight = '이번 달 데이터를 분석 중입니다...';
   List<Map<String, dynamic>> _categoryStats = [];
+  String _charEmoji = '🦁';
+  String _charName = '소리 AI';
 
   // 아직 실제 위험지역 알림 시스템이 없으므로 임시 데이터를 표시하거나 비워둘 수 있습니다.
   static const List<Map<String, dynamic>> nagHistory = [
@@ -62,6 +64,9 @@ class _AiScreenState extends State<AiScreen> {
       // 1. 유저 정보
       final userDoc = await FirebaseFirestore.instance.collection(CollectionKeys.users).doc(uid).get();
       final characterType = userDoc.data()?['characterType'] as String? ?? 'lion';
+      final charInfo = CharacterTypes.characterData[characterType] ?? CharacterTypes.characterData['lion']!;
+      _charEmoji = charInfo['emoji'] ?? '🦁';
+      _charName = charInfo['name'] ?? '소리 AI';
 
       // 2. 예산 데이터
       final budgetDoc = await FirebaseFirestore.instance
@@ -212,7 +217,7 @@ class _AiScreenState extends State<AiScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    _buildDarkInsightCard(),
+                    _buildChatBubble(),
                     const SizedBox(height: 24),
                     Text('소비 인사이트', style: AppTextStyles.sectionHeader),
                     const SizedBox(height: 12),
@@ -233,76 +238,74 @@ class _AiScreenState extends State<AiScreen> {
     );
   }
 
-  Widget _buildDarkInsightCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.gradFrom, AppColors.gradTo],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+  Widget _buildChatBubble() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 캐릭터 프로필
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
+          ),
+          alignment: Alignment.center,
+          child: Text(_charEmoji, style: const TextStyle(fontSize: 28)),
         ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _AiBadge(),
-          const SizedBox(height: 16),
-          if (monthlyReportFuture == null)
-            Text(
-              'AI 리포트를 생성할 데이터가 부족합니다.',
-              style: AppTextStyles.heroAmount.copyWith(
-                fontSize: 18,
-                letterSpacing: 0,
-              ),
-            )
-          else
-            FutureBuilder<String>(
-              future: monthlyReportFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Text(
-                    'AI가 이번 달 소비 리포트를 생성하는 중입니다...',
-                    style: AppTextStyles.heroAmount.copyWith(
-                      fontSize: 18,
-                      letterSpacing: 0,
-                    ),
-                  );
-                }
-
-                return Text(
-                  snapshot.data ?? _topCategoryInsight,
-                  style: AppTextStyles.heroAmount.copyWith(
-                    fontSize: 18,
-                    letterSpacing: 0,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_charName, style: AppTextStyles.bodyBold.copyWith(color: AppColors.textPrimary)),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(20),
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
                   ),
-                );
-              },
-            ),
-          const SizedBox(height: 16),
-          Divider(color: Colors.white.withValues(alpha: 0.15)),
-          const SizedBox(height: 12),
-          _InsightRow(
-            icon: Icons.show_chart,
-            color: AppColors.stateDanger,
-            text: _topCategoryInsight,
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (monthlyReportFuture == null)
+                      Text(
+                        'AI 리포트를 생성할 데이터가 부족합니다.',
+                        style: AppTextStyles.body.copyWith(height: 1.5, color: AppColors.textPrimary),
+                      )
+                    else
+                      FutureBuilder<String>(
+                        future: monthlyReportFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Row(
+                              children: [
+                                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                                const SizedBox(width: 12),
+                                Expanded(child: Text('이번 달 소비 내역을 분석 중입니다...', style: AppTextStyles.body.copyWith(color: AppColors.textPrimary))),
+                              ],
+                            );
+                          }
+                          return Text(
+                            snapshot.data ?? _topCategoryInsight,
+                            style: AppTextStyles.body.copyWith(height: 1.5, color: AppColors.textPrimary),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          const _InsightRow(
-            icon: Icons.psychology,
-            color: AppColors.stateCaution,
-            text: '소비 패턴을 분석하여 스마트한 지출을 도와드려요.',
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -492,61 +495,64 @@ class _AiScreenState extends State<AiScreen> {
 
   Widget _buildNagItem(Map<String, dynamic> item) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.stateDanger.withValues(alpha: 0.25),
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
+            ),
+            alignment: Alignment.center,
+            child: Text(_charEmoji, style: const TextStyle(fontSize: 20)),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.stateDanger.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.location_on,
-                color: AppColors.stateDanger,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(_charName, style: AppTextStyles.captionNormal.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 6),
+                    Text(item['date'], style: AppTextStyles.micro.copyWith(color: AppColors.textHint)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                    border: Border.all(color: AppColors.stateDanger.withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        item['location'],
-                        style: AppTextStyles.bodyBold.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on, color: AppColors.stateDanger, size: 14),
+                          const SizedBox(width: 4),
+                          Text(item['location'], style: AppTextStyles.captionNormal.copyWith(color: AppColors.stateDanger, fontWeight: FontWeight.bold)),
+                        ],
                       ),
-                      Text(item['date'], style: AppTextStyles.captionNormal),
+                      const SizedBox(height: 4),
+                      Text(item['msg'], style: AppTextStyles.body.copyWith(height: 1.4)),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(item['msg'], style: AppTextStyles.body),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
