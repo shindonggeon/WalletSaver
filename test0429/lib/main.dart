@@ -17,6 +17,7 @@ import 'screens/ledger_screen.dart';
 import 'screens/character_screen.dart';
 import 'screens/danger_zone_screen.dart';
 import 'services/notification_service.dart';
+import 'services/demo_service.dart';
 
 
 void main() async {
@@ -173,7 +174,46 @@ class MainScaffold extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: AppColors.textPrimary),
             onPressed: () {
-              // 설정 페이지 이동 로직 추가 가능
+              final uid = FirebaseAuth.instance.currentUser?.uid;
+              if (uid == null) return;
+              showModalBottomSheet(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                builder: (ctx) => Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40, height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text('설정', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        leading: const Text('🌱', style: TextStyle(fontSize: 24)),
+                        title: const Text('데모 데이터 초기화'),
+                        subtitle: const Text('시연용 지출·챌린지·위험지역 데이터를 넣습니다'),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        tileColor: Colors.green.withValues(alpha: 0.06),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          DemoService.seedDemoData(context, uid);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
             },
           ),
           const SizedBox(width: 8),
